@@ -228,7 +228,7 @@ body:not(.clean) #showBar { display: none; }
   <span class="brand">Birdsong Drive</span>
   <select id="route" aria-label="Route"></select>
   <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
-  <div class="spd"><button id="slower" aria-label="Slower">−</button><span id="speedV"></span><button id="faster" aria-label="Faster">+</button></div>
+  <div class="spd"><button id="slower" aria-label="Slower" title="Slower (↓)">−</button><span id="speedV"></span><button id="faster" aria-label="Faster" title="Faster (↑, Shift for more)">+</button></div>
   <span id="prog"></span>
   <button class="primary" id="go" disabled>Start</button>
   <button class="icon" id="gear" aria-expanded="false" aria-label="Settings">⚙</button>
@@ -357,7 +357,15 @@ new ResizeObserver(trackTop).observe($('top')); addEventListener('resize', track
 function setClean(on) { document.body.classList.toggle('clean', on); store.set('bs.clean', on ? '1' : ''); }
 $('hidePanels').onclick = () => { $('settings').hidden = true; setClean(true); };
 $('showBar').onclick = () => setClean(false);
-addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) setClean(!document.body.classList.contains('clean')); });
+addEventListener('keydown', e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key.toLowerCase() === 'h') setClean(!document.body.classList.contains('clean'));
+  // Up/Down change speed by about 5 mph (Shift for 15), instead of panning the map.
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault(); e.stopPropagation();
+    nudge((e.key === 'ArrowUp' ? 8 : -8) * (e.shiftKey ? 3 : 1));
+  }
+}, true);
 setClean(store.get('bs.clean') === '1');
 
 // ---------- geo helpers ----------
@@ -568,28 +576,48 @@ function pingMap(s) {
   const m = new mapboxgl.Marker({ element: el }).setLngLat(s.lngLat).addTo(map);
   setTimeout(() => m.remove(), 1500);
 }
-// A blob with a couple of drips, drawn fresh each time so no two splats match.
-function splatSVG() {
-  const pts = [...Array(14)].map((_, i) => { const a = i / 14 * Math.PI * 2, r = 30 + Math.random() * 16;
-    return [65 + Math.cos(a) * r, 55 + Math.sin(a) * r * .85]; });
-  const path = 'M' + pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' L');
-  const drips = [...Array(2 + Math.floor(Math.random() * 2))].map(() => { const x = 45 + Math.random() * 40;
-    return `<rect class="drip" x="${x.toFixed(0)}" y="70" width="${(5 + Math.random() * 5).toFixed(0)}" height="${(30 + Math.random() * 45).toFixed(0)}" rx="5" fill="#f4f1e6"/>`; }).join('');
-  const dots = [...Array(5)].map(() => `<circle cx="${(10 + Math.random() * 110).toFixed(0)}" cy="${(5 + Math.random() * 100).toFixed(0)}" r="${(2 + Math.random() * 5).toFixed(1)}" fill="#f4f1e6"/>`).join('');
-  return `<svg viewBox="0 0 130 150" width="130" height="150"><path d="${path} Z" fill="#f4f1e6" stroke="#d9d3bf" stroke-width="2" stroke-linejoin="round"/>
-    ${drips}${dots}<ellipse cx="58" cy="50" rx="11" ry="8" fill="#8a8170" opacity=".55"/><ellipse cx="52" cy="44" rx="9" ry="5" fill="#fff" opacity=".7"/></svg>`;
+// Who dropped it: each bird leaves its own kind of mess, and costs a different amount.
+const POO = [
+  { who: 'A gull', note: 'caught you speeding', fill: '#f4f1e6', edge: '#d9d3bf', core: '#8a8170', scale: 1, n: [1, 3], cost: 5, shape: 'blob' },
+  { who: 'A robin full of berries', note: 'got you', fill: '#7a2d63', edge: '#5a1f49', core: '#2b0f22', scale: .9, n: [1, 2], cost: 6, shape: 'blob', seeds: true },
+  { who: 'A pigeon', note: 'tagged you', fill: '#e6e3dc', edge: '#b9b4a8', core: '#5d6b4f', scale: .7, n: [2, 3], cost: 4, shape: 'blob' },
+  { who: 'A brown pelican', note: 'scored a direct hit', fill: '#efe0bf', edge: '#cfb27a', core: '#b9773c', scale: 1.5, n: [1, 1], cost: 8, shape: 'blob' },
+  { who: 'A Canada goose', note: 'left a gift', fill: '#6f7c3c', edge: '#4f5a26', core: '#3c461a', scale: 1, n: [1, 1], cost: 7, shape: 'logs' },
+  { who: 'A hummingbird', note: 'barely touched you', fill: '#fbfaf5', edge: '#dedad0', core: '#bdb7a8', scale: .35, n: [5, 8], cost: 2, shape: 'blob' },
+];
+const rnd = (a, b) => a + Math.random() * (b - a);
+function splatSVG(t) {
+  const W = 130 * t.scale, H = 150 * t.scale, f = n => n.toFixed(1);
+  let body = '';
+  if (t.shape === 'logs') {    // goose droppings: a few olive cylinders
+    for (let k = 0; k < 3; k++) body += `<rect x="${f(rnd(20, 70))}" y="${f(rnd(25, 85))}" width="${f(rnd(34, 50))}" height="13" rx="6.5"
+      transform="rotate(${f(rnd(-50, 50))} 65 65)" fill="${t.fill}" stroke="${t.edge}" stroke-width="2"/>`;
+    body += `<ellipse cx="62" cy="58" rx="16" ry="5" fill="#fff" opacity=".18"/>`;
+  } else {
+    const pts = [...Array(14)].map((_, i) => { const a = i / 14 * Math.PI * 2, r = rnd(30, 46); return [65 + Math.cos(a) * r, 55 + Math.sin(a) * r * .85]; });
+    body = `<path d="M${pts.map(p => p.map(f).join(',')).join(' L')} Z" fill="${t.fill}" stroke="${t.edge}" stroke-width="2" stroke-linejoin="round"/>`;
+    for (let k = 0, m = 2 + Math.floor(Math.random() * 2); k < m; k++)
+      body += `<rect class="drip" x="${f(rnd(45, 85))}" y="70" width="${f(rnd(5, 10))}" height="${f(rnd(30, 75))}" rx="5" fill="${t.fill}"/>`;
+    for (let k = 0; k < 5; k++) body += `<circle cx="${f(rnd(10, 120))}" cy="${f(rnd(5, 105))}" r="${f(rnd(2, 7))}" fill="${t.fill}"/>`;
+    body += `<ellipse cx="58" cy="50" rx="${f(rnd(9, 14))}" ry="${f(rnd(6, 10))}" fill="${t.core}" opacity=".6"/>`;
+    if (t.seeds) for (let k = 0; k < 6; k++) body += `<ellipse cx="${f(rnd(40, 90))}" cy="${f(rnd(35, 75))}" rx="2.4" ry="1.6" fill="#e8c46a" opacity=".85"/>`;
+    body += `<ellipse cx="52" cy="44" rx="9" ry="5" fill="#fff" opacity="${t.fill === '#f4f1e6' ? .7 : .25}"/>`;
+  }
+  return `<svg viewBox="0 0 130 150" width="${f(W)}" height="${f(H)}">${body}</svg>`;
 }
 function birdPoo() {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const t = POO[Math.floor(Math.random() * POO.length)];
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return t;
   const ws = $('windshield'), W = innerWidth, H = innerHeight, splats = [];
-  const n = 1 + Math.floor(Math.random() * 3);
+  const n = t.n[0] + Math.floor(Math.random() * (t.n[1] - t.n[0] + 1)), half = 65 * t.scale;
   for (let i = 0; i < n; i++) {
     const el = document.createElement('div'); el.className = 'splat';
-    const x = W * (.15 + Math.random() * .7) - 65, y = H * (.08 + Math.random() * .45);
-    el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.setProperty('--r', (Math.random() * 40 - 20) + 'deg');
-    el.style.animationDelay = (i * .22) + 's';
-    el.innerHTML = splatSVG(); ws.append(el); splats.push({ el, x: x + 65, y });
-    sfx.splat(i * .22);
+    const x = W * (.12 + Math.random() * .76) - half, y = H * (.08 + Math.random() * .5);
+    el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.width = 130 * t.scale + 'px';
+    el.style.setProperty('--r', (Math.random() * 40 - 20) + 'deg');
+    el.style.animationDelay = (i * (n > 3 ? .09 : .22)) + 's';
+    el.innerHTML = splatSVG(t); ws.append(el); splats.push({ el, x: x + half, y });
+    if (i < 3) sfx.splat(i * (n > 3 ? .09 : .22));
   }
   // Wiper pivots at bottom-centre: sweep right to left, then back.
   setTimeout(() => {
@@ -605,6 +633,7 @@ function birdPoo() {
       setTimeout(() => s.el.remove(), when + 500);
     }
   }, 450 + n * 220 + 500);
+  return t;
 }
 $('sfx').checked = store.get('bs.sfx') !== 'off';
 $('sfx').onchange = () => store.set('bs.sfx', $('sfx').checked ? 'on' : 'off');
@@ -620,9 +649,9 @@ function checkSpeed(kmh, limitKmh, unit) {
   const over = kmh > limitKmh * 1.1;
   box.classList.toggle('over', over);
   if (over && performance.now() - lastPoo > 4000) {
-    lastPoo = performance.now(); birdPoo();
-    rollDay(); const lost = Math.min(5, game.pts); game.pts -= lost; saveGame();
-    if (lost) status(`Splat! A gull caught you speeding. −${lost} points.`);
+    lastPoo = performance.now(); const t = birdPoo();
+    rollDay(); const lost = Math.min(t.cost, game.pts); game.pts -= lost; saveGame();
+    status(`Splat! ${t.who} ${t.note}.` + (lost ? ` −${lost} points.` : ''));
   }
 }
 
