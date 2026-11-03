@@ -29,40 +29,76 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
   border-radius: 14px; backdrop-filter: blur(10px); }
 /* Layout: one slim bar top-left (drive controls), score pill top-right with heard-bird stickers under it,
    speed sign bottom-left, field card bottom-right. Everything else lives behind the gear. */
-#bar { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); display: flex; align-items: center; gap: 8px;
-  padding: 6px 6px 6px 14px; border-radius: 999px; max-width: calc(100% - 330px); }
+/* Base controls: pill-shaped, quiet fills, one moss accent for the primary action. */
+h1 { margin: 0; font: 800 21px/1.1 var(--f-display); }
+label { display: block; font-size: 11px; color: var(--dim); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .7px; }
+label span { text-transform: none; letter-spacing: 0; color: var(--ink); font-family: var(--f-mono); }
+select, input[type=password] { appearance: none; -webkit-appearance: none; width: 100%; padding: 8px 32px 8px 12px; border-radius: 10px;
+  border: 1px solid var(--line); color: var(--ink); font: 500 13.5px var(--f-body); cursor: pointer;
+  background: var(--panel-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%239db0a5' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 12px center; }
+input[type=password] { background-image: none; padding-right: 12px; cursor: text; }
+select option, select optgroup { background: #17201b; color: var(--ink); }
+input[type=range] { width: 100%; accent-color: var(--moss); }
+button { appearance: none; -webkit-appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  font: 600 13.5px var(--f-body); cursor: pointer; white-space: nowrap; transition: background .15s, transform .1s; }
+button:hover:not(:disabled) { background: rgba(255,255,255,.13); }
+button:active:not(:disabled) { transform: scale(.97); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--song); outline-offset: 2px; }
+button.primary { background: var(--moss); color: var(--on-accent); border-color: transparent; }
+button.primary:hover:not(:disabled) { background: #96e2b7; }
+button:disabled { opacity: .45; cursor: default; }
+button.icon { padding: 8px 11px; font-weight: 500; }
+.row { display: flex; gap: 8px; margin-top: 12px; } .row button { flex: 1; }
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 6px 12px; font-weight: 500; color: var(--dim); }
+.seg button:hover:not(:disabled) { background: rgba(255,255,255,.08); color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--moss); color: var(--on-accent); font-weight: 600; }
+.check { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--moss); width: 16px; height: 16px; flex: 0 0 auto; }
+#status { margin-top: 10px; font: 12px var(--f-mono); color: var(--dim); min-height: 1.4em; }
+.credits { color: var(--dim); font-size: 11px; margin-top: 8px; opacity: .8; }
+.legend { display: flex; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--dim); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+/* Top strip: drive bar on the left, score and stickers on the right. They share one wrapping row,
+   so at narrower widths the score drops under the bar instead of colliding with it. */
+#top { position: fixed; z-index: 2; top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right));
+  display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-start; pointer-events: none; }
+#top > * { pointer-events: auto; }
+#bar { position: static; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 16px; border-radius: 999px; min-width: 0; }
 #bar .brand { font: 800 17px var(--f-display); letter-spacing: -.2px; white-space: nowrap; }
-#bar select { width: auto; max-width: 240px; padding: 7px 10px; border-radius: 999px; }
-#bar .seg { border-radius: 999px; }
-#bar .seg button { padding: 7px 12px; border-radius: 0; }
-#bar button { flex: 0 0 auto; border-radius: 999px; padding: 7px 14px; }
-#bar .spd { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; }
-#bar .spd button { border: 0; background: none; padding: 7px 10px; }
-#bar .spd span { font: 500 13px var(--f-mono); min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
+#bar select { width: auto; max-width: 250px; min-width: 120px; border-radius: 999px; padding-top: 7px; padding-bottom: 7px; }
+#bar > button { border-radius: 999px; }
+#bar .spd { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); }
+#bar .spd button { border: 0; background: none; padding: 6px 11px; border-radius: 999px; font-size: 15px; }
+#bar .spd span { font: 500 13px var(--f-mono); min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
 #prog { font: 12px var(--f-mono); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 #prog:empty { display: none; }
-#score { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); border-radius: 999px;
-  padding: 9px 16px; display: flex; gap: 14px; font: 13px var(--f-mono); color: var(--dim); white-space: nowrap; }
+#side { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+#side > * { pointer-events: auto; }
+#score { position: static; border-radius: 999px; padding: 10px 16px; display: flex; gap: 14px; font: 13px var(--f-mono); color: var(--dim); white-space: nowrap; }
 #score b { font-weight: 500; color: var(--ink); }
 #score .pts b { color: var(--gold); font-size: 16px; }
 /* Heard birds as stickers: blue ring while singing, gold once claimed, "?" until a quiz is answered. */
-#heardList { position: absolute; z-index: 2; top: calc(max(16px, env(safe-area-inset-top)) + 50px); right: max(16px, env(safe-area-inset-right));
-  display: flex; flex-direction: row-reverse; gap: 6px; max-width: 420px; flex-wrap: wrap-reverse; justify-content: flex-start; }
+#heardList { display: flex; flex-direction: row-reverse; flex-wrap: wrap-reverse; gap: 6px; max-width: 420px; }
+#heardList:empty { display: none; }
 .sticker { width: 46px; height: 46px; padding: 0; flex: 0 0 auto; border-radius: 50%; overflow: hidden; border: 2px solid var(--panel);
   box-shadow: 0 0 0 2px var(--line), 0 3px 10px rgba(0,0,0,.35); background: var(--panel); animation: boing .5s cubic-bezier(.3, 1.6, .5, 1); }
+.sticker:hover:not(:disabled) { background: var(--panel); transform: scale(1.08); }
 .sticker img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sticker.q { font: 800 18px var(--f-display); color: var(--dim); }
 .sticker.live { box-shadow: 0 0 0 2px var(--song), 0 0 14px var(--song); }
 .sticker.claimed { box-shadow: 0 0 0 2px var(--gold), 0 3px 10px rgba(0,0,0,.35); }
-#settings { top: calc(max(16px, env(safe-area-inset-top)) + 54px); left: max(16px, env(safe-area-inset-left)); width: 330px;
-  padding: 12px 16px 14px; max-height: calc(100% - 100px); overflow: auto; z-index: 6; }
+#settings { position: fixed; top: calc(var(--bar-bottom, 70px) + 8px); left: max(16px, env(safe-area-inset-left)); width: 340px;
+  padding: 14px 16px 16px; max-height: calc(100% - var(--bar-bottom, 70px) - 24px); overflow: auto; z-index: 6; }
 #settings h2 { margin: 0; font: 800 17px var(--f-display); }
 #settings .about { color: var(--dim); font-size: 12.5px; margin: 4px 0 6px; }
 #toast { position: fixed; z-index: 7; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%);
   max-width: min(360px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   padding: 8px 14px; font: 12.5px var(--f-mono); text-align: center; animation: boing .4s ease-out; }
-#showBar { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); border-radius: 999px; flex: 0 0 auto; padding: 8px 14px; }
-body.clean #bar, body.clean #score, body.clean #heardList, body.clean #settings { display: none; }
+#showBar { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); border-radius: 999px; padding: 8px 14px; }
+body.clean #top, body.clean #settings { display: none; }
 body:not(.clean) #showBar { display: none; }
 @keyframes pulse { 50% { opacity: .3; } }
 
@@ -149,20 +185,21 @@ body:not(.clean) #showBar { display: none; }
 }
 /* Quiz stage shows only the blurred bird and the three choices. */
 #card.mystery .chips, #card.mystery .fact, #card.mystery .where, #card.mystery #claim { display: none; }
-@media (max-width: 1320px) { #bar .brand { display: none; } }
-@media (max-width: 1060px) { #prog { display: none; } #bar select { max-width: 170px; } }
-/* Phone: two-row bar (route, Start, gear / camera, speed), then score and stickers, card along the bottom. */
-@media (max-width: 760px) {
-  #bar { right: 16px; max-width: none; flex-wrap: wrap; border-radius: 18px; padding: 8px; gap: 6px; }
-  #bar select { flex: 1 1 calc(100% - 140px); min-width: 0; max-width: none; order: 1; }
+@media (max-width: 1240px) { #bar .brand { display: none; } }
+@media (max-width: 980px) { #prog { display: none; } #bar select { max-width: 190px; } }
+/* Phone: the bar fills the width in two rows; score and stickers sit under it; card along the bottom. */
+@media (max-width: 680px) {
+  #bar { flex: 1 1 100%; flex-wrap: wrap; border-radius: 20px; padding: 8px; gap: 6px; }
+  #bar select { flex: 1 1 calc(100% - 150px); min-width: 0; max-width: none; order: 1; }
   #bar #go { order: 2; } #bar #gear { order: 3; }
-  #bar .seg { order: 4; flex: 1 1 auto; min-width: 0; } #bar .seg button { flex: 1; padding: 6px 4px; font-size: 12.5px; white-space: nowrap; }
+  #bar .seg { order: 4; flex: 1 1 auto; } #bar .seg button { flex: 1; padding: 6px 6px; font-size: 12.5px; }
   #bar .spd { order: 5; }
-  #score { left: 16px; right: auto; top: calc(max(16px, env(safe-area-inset-top)) + 104px); gap: 10px; font-size: 12px; padding: 7px 12px; }
-  #score span:last-child { display: none; }
-  #heardList { top: calc(max(16px, env(safe-area-inset-top)) + 150px); left: 16px; right: 16px; max-width: none; }
-  #settings { left: 16px; right: 16px; width: auto; top: calc(max(16px, env(safe-area-inset-top)) + 104px); }
-  #limit { left: auto; right: 16px; bottom: auto; top: calc(max(16px, env(safe-area-inset-top)) + 210px); }
+  #side { margin-left: 0; flex: 1 1 100%; align-items: stretch; }
+  #score { justify-content: space-between; gap: 8px; font-size: 12px; padding: 8px 14px; }
+  #heardList { max-width: none; flex-direction: row; flex-wrap: wrap; }
+  .sticker { width: 40px; height: 40px; }
+  #settings { left: 16px; right: 16px; width: auto; }
+  #limit { left: auto; right: 16px; bottom: auto; top: calc(var(--top-bottom, 200px) + 10px); }
   #card { left: 16px; right: 16px; width: auto; grid-template-columns: 120px minmax(0, 1fr); }
   #card .ph { min-height: 120px; }
   #card .chips { display: none; }
@@ -183,6 +220,7 @@ body:not(.clean) #showBar { display: none; }
   <div class="row"><button class="primary" id="saveKeys">Save and open map</button></div>
 </div>
 
+<div id="top">
 <div id="bar" class="panel">
   <span class="brand">Birdsong Drive</span>
   <select id="route" aria-label="Route"></select>
@@ -192,12 +230,16 @@ body:not(.clean) #showBar { display: none; }
   <button class="primary" id="go" disabled>Start</button>
   <button class="icon" id="gear" aria-expanded="false" aria-label="Settings">⚙</button>
 </div>
-<button id="showBar" class="panel" title="Show controls (H)">☰ Controls</button>
 
+<div id="side">
 <div id="score" class="panel">
   <span class="pts"><b id="ptsToday">0</b> pts</span><span><b id="streak">0</b>-day streak</span><span><b id="nLife">0</b> lifers</span><span><b id="nHeard">0</b> heard</span>
 </div>
 <div id="heardList"></div>
+</div>
+</div>
+
+<button id="showBar" class="panel" title="Show controls (H)">☰ Controls</button>
 
 <div id="settings" class="panel" hidden>
   <h2>Birdsong Drive</h2>
@@ -288,10 +330,25 @@ const fmt = { range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
 for (const k of ['range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
 $('speed').oninput = () => { const v = +$('speed').value; $('speedV').textContent = `${Math.round(v / 1.609)} mph`; $('speedK').textContent = `${v} km/h`; };
 $('speed').oninput();
-const nudge = d => { $('speed').value = Math.max(10, Math.min(1000, +$('speed').value + d)); $('speed').oninput(); };
-$('slower').onclick = () => nudge(-8); $('faster').onclick = () => nudge(8);   // about 5 mph a tap
+// The driver's own speed wins over the posted limit once they've touched it.
+let speedChosen = false;
+const nudge = d => { speedChosen = true; $('speed').value = Math.max(10, Math.min(1000, +$('speed').value + d)); $('speed').oninput(); };
+$('speed').addEventListener('change', () => speedChosen = true);
+// Tap = about 5 mph; hold to keep accelerating.
+for (const [id, d] of [['slower', -8], ['faster', 8]]) {
+  let hold;
+  $(id).onpointerdown = e => { e.preventDefault(); nudge(d); let n = 0; hold = setInterval(() => nudge(d * (++n > 8 ? 3 : 1)), 140); };
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $(id).addEventListener(ev, () => clearInterval(hold));
+  $(id).onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); nudge(d); } };
+}
 $('gear').onclick = e => { e.stopPropagation(); const open = $('settings').hidden; $('settings').hidden = !open; $('gear').setAttribute('aria-expanded', open); };
 addEventListener('pointerdown', e => { if (!$('settings').hidden && !e.target.closest('#settings, #gear')) { $('settings').hidden = true; $('gear').setAttribute('aria-expanded', false); } });
+
+// Settings and the phone speed sign sit just under whatever height the top strip wraps to.
+const trackTop = () => { const r = document.documentElement.style;
+  r.setProperty('--bar-bottom', $('bar').getBoundingClientRect().bottom + 'px');
+  r.setProperty('--top-bottom', $('top').getBoundingClientRect().bottom + 'px'); };
+new ResizeObserver(trackTop).observe($('top')); addEventListener('resize', trackTop);
 
 // Hide/show panels so street view gets the whole screen.
 function setClean(on) { document.body.classList.toggle('clean', on); store.set('bs.clean', on ? '1' : ''); }
@@ -788,7 +845,7 @@ function startDrive() {
   resetHeard();
   // Start at the posted limit for the first stretch that has one.
   const first = route.limits?.find(Boolean);
-  if (first) { $('speed').value = Math.round(first.kmh); $('speed').oninput(); }
+  if (first && !speedChosen) { $('speed').value = Math.round(first.kmh); $('speed').oninput(); }
   drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
   driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
