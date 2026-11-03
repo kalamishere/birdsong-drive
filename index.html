@@ -791,15 +791,24 @@ function cardVoiceEnded(v) {
 // ---------- not a bird: the flying roadster ----------
 // A nod to the October 2026 flying Roadster demo: short thruster hops, a flip, a landing. It is not a bird.
 function roadsterSVG(plumes) {
+  // Second-gen Roadster profile: very low wedge nose, one long glass canopy, short ducktail, aero wheels.
+  const wheel = cx => `<circle cx="${cx}" cy="76" r="17" fill="#121518"/><circle cx="${cx}" cy="76" r="12" fill="#c9cfd5"/>
+    ${[0, 72, 144, 216, 288].map(a => `<path d="M${cx} 76 l0 -11 a11 11 0 0 1 7 3 Z" fill="#8d959e" transform="rotate(${a} ${cx} 76)"/>`).join('')}
+    <circle cx="${cx}" cy="76" r="3.2" fill="#2a2f35"/>`;
   return `<svg viewBox="0 0 230 110" xmlns="http://www.w3.org/2000/svg">
-    ${plumes ? [40, 78, 152, 190].map(x => `<path class="plume" d="M${x - 9} 74 Q${x} 112 ${x + 9} 74 Z" fill="#fff" opacity=".85"/>`).join('') : ''}
-    <path d="M14 70 Q12 56 30 52 L72 46 Q96 26 128 25 Q160 25 182 44 L210 50 Q224 54 222 68 L220 74 L16 76 Z" fill="#c8102e"/>
-    <path d="M80 46 Q100 31 128 30 Q152 30 170 44 Z" fill="#1d2630"/>
-    <path d="M86 45 Q102 34 124 33 L124 45 Z" fill="#5d7690" opacity=".8"/>
-    <path d="M20 60 L60 56" stroke="#ff6b6b" stroke-width="2" opacity=".6"/>
-    <rect x="208" y="56" width="12" height="5" rx="2" fill="#ffe7a8"/><rect x="14" y="58" width="9" height="5" rx="2" fill="#ff3b3b"/>
-    <circle cx="56" cy="76" r="15" fill="#15191d"/><circle cx="56" cy="76" r="7" fill="#7a838c"/>
-    <circle cx="176" cy="76" r="15" fill="#15191d"/><circle cx="176" cy="76" r="7" fill="#7a838c"/>
+    <defs>
+      <linearGradient id="rsBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ef2b45"/><stop offset=".55" stop-color="#c10f28"/><stop offset="1" stop-color="#7d0716"/></linearGradient>
+      <linearGradient id="rsGlass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b4c5e"/><stop offset="1" stop-color="#0f161d"/></linearGradient>
+    </defs>
+    ${plumes ? [44, 70, 160, 186].map(x => `<path class="plume" d="M${x - 8} 78 Q${x} 112 ${x + 8} 78 Z" fill="#fff" opacity=".85"/>`).join('') : ''}
+    <path d="M6 70 Q8 63 30 60 Q66 55 96 47 Q124 31 148 32 Q178 34 204 49 L221 51 Q226 55 225 64 L222 72 Q160 80 120 80 L22 80 Q6 79 6 70 Z" fill="url(#rsBody)"/>
+    <path d="M99 48 Q126 31 148 33 Q172 35 192 47 L188 51 Q150 47 104 53 Z" fill="url(#rsGlass)"/>
+    <path d="M112 44 Q128 36 146 36" stroke="#9fb3c6" stroke-width="2.2" fill="none" opacity=".55" stroke-linecap="round"/>
+    <path d="M30 62 Q90 54 150 54 Q190 55 215 58" stroke="#ff8a96" stroke-width="1.4" fill="none" opacity=".55"/>
+    <path d="M132 62 Q150 58 166 64 Q150 66 134 66 Z" fill="#5a0612" opacity=".7"/>
+    <path d="M10 66 Q22 62 38 61" stroke="#eef6ff" stroke-width="3" stroke-linecap="round"/>
+    <path d="M214 55 L223 56" stroke="#ff2d3d" stroke-width="3" stroke-linecap="round"/>
+    ${wheel(54)}${wheel(178)}
   </svg>`;
 }
 const roadsterImg = 'data:image/svg+xml,' + encodeURIComponent(roadsterSVG(true));
