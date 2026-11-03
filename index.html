@@ -27,55 +27,43 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); 
 #map { position: absolute; inset: 0; }
 .panel { position: absolute; z-index: 2; background: var(--panel); border: 1px solid var(--line);
   border-radius: 14px; backdrop-filter: blur(10px); }
-#ctrl { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); width: 320px;
-  padding: 14px 16px; max-height: calc(100% - 32px); overflow: auto; }
-.head { display: flex; align-items: center; gap: 8px; }
-h1 { margin: 0; font: 800 21px/1.1 var(--f-display); letter-spacing: -.2px; flex: 1; }
-.sub { color: var(--dim); font-size: 12.5px; margin: 4px 0 10px; }
-label { display: block; font-size: 11px; color: var(--dim); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .7px; }
-label span { text-transform: none; letter-spacing: 0; color: var(--ink); font-family: var(--f-mono); }
-select, input[type=password] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
-  background: var(--panel-2); color: var(--ink); font: inherit; }
-input[type=range] { width: 100%; accent-color: var(--moss); }
-.row { display: flex; gap: 8px; margin-top: 12px; }
-button { flex: 1; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2);
-  color: var(--ink); font: 600 13.5px var(--f-body); cursor: pointer; }
-button:hover:not(:disabled) { background: rgba(255,255,255,.12); }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--song); outline-offset: 2px; }
-button.primary { background: var(--moss); color: var(--on-accent); border-color: transparent; }
-button:disabled { opacity: .45; cursor: default; }
-button.icon { flex: 0 0 auto; padding: 6px 9px; font-weight: 500; }
-.seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
-.seg button { border: 0; border-radius: 0; font-weight: 500; }
-.seg button[aria-pressed="true"] { background: var(--moss); color: var(--on-accent); font-weight: 600; }
-.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
-.check input { accent-color: var(--moss); width: 16px; height: 16px; }
-details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; }
-summary { cursor: pointer; color: var(--dim); font-size: 12px; padding: 4px 0; }
-#status { margin-top: 10px; font-size: 12px; color: var(--dim); min-height: 1.4em; font-family: var(--f-mono); }
-.credits { color: var(--dim); font-size: 11px; margin-top: 8px; opacity: .8; }
-
-/* Score strip: today's points lead, the rest are checklist-style tallies. */
-.score { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
-.score div { background: var(--panel-2); border-radius: 9px; padding: 6px 8px; font-size: 10.5px; color: var(--dim);
-  text-transform: uppercase; letter-spacing: .5px; }
-.score b { display: block; font: 500 17px var(--f-mono); color: var(--ink); text-transform: none; letter-spacing: 0;
-  font-variant-numeric: tabular-nums; }
-.score .pts b { color: var(--gold); }
-.legend { display: flex; gap: 12px; margin-top: 10px; font-size: 11px; color: var(--dim); }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
-
-#now { right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); width: 270px;
-  padding: 12px 14px; max-height: calc(100% - 330px); min-height: 60px; overflow: auto; }
-#now h2, #card .eyebrow { margin: 0 0 6px; font: 500 10.5px var(--f-mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); }
-.bird { display: grid; grid-template-columns: 40px 1fr auto; gap: 0 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
-.bird:first-of-type { border-top: 0; }
-.bird img { width: 40px; height: 40px; border-radius: 7px; object-fit: cover; background: var(--panel-2); }
-.bird .n { font-weight: 600; font-size: 13px; line-height: 1.2; }
-.bird .s { font: italic 13px var(--f-latin); color: var(--dim); }
-.bird .tag { font: 500 11px var(--f-mono); color: var(--gold); }
-.bird.live .n::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: 1px;
-  border-radius: 50%; background: var(--song); box-shadow: 0 0 8px var(--song); animation: pulse 1s infinite; }
+/* Layout: one slim bar top-left (drive controls), score pill top-right with heard-bird stickers under it,
+   speed sign bottom-left, field card bottom-right. Everything else lives behind the gear. */
+#bar { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); display: flex; align-items: center; gap: 8px;
+  padding: 6px 6px 6px 14px; border-radius: 999px; max-width: calc(100% - 330px); }
+#bar .brand { font: 800 17px var(--f-display); letter-spacing: -.2px; white-space: nowrap; }
+#bar select { width: auto; max-width: 240px; padding: 7px 10px; border-radius: 999px; }
+#bar .seg { border-radius: 999px; }
+#bar .seg button { padding: 7px 12px; border-radius: 0; }
+#bar button { flex: 0 0 auto; border-radius: 999px; padding: 7px 14px; }
+#bar .spd { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; }
+#bar .spd button { border: 0; background: none; padding: 7px 10px; }
+#bar .spd span { font: 500 13px var(--f-mono); min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
+#prog { font: 12px var(--f-mono); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#prog:empty { display: none; }
+#score { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); border-radius: 999px;
+  padding: 9px 16px; display: flex; gap: 14px; font: 13px var(--f-mono); color: var(--dim); white-space: nowrap; }
+#score b { font-weight: 500; color: var(--ink); }
+#score .pts b { color: var(--gold); font-size: 16px; }
+/* Heard birds as stickers: blue ring while singing, gold once claimed, "?" until a quiz is answered. */
+#heardList { position: absolute; z-index: 2; top: calc(max(16px, env(safe-area-inset-top)) + 50px); right: max(16px, env(safe-area-inset-right));
+  display: flex; flex-direction: row-reverse; gap: 6px; max-width: 420px; flex-wrap: wrap-reverse; justify-content: flex-start; }
+.sticker { width: 46px; height: 46px; padding: 0; flex: 0 0 auto; border-radius: 50%; overflow: hidden; border: 2px solid var(--panel);
+  box-shadow: 0 0 0 2px var(--line), 0 3px 10px rgba(0,0,0,.35); background: var(--panel); animation: boing .5s cubic-bezier(.3, 1.6, .5, 1); }
+.sticker img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sticker.q { font: 800 18px var(--f-display); color: var(--dim); }
+.sticker.live { box-shadow: 0 0 0 2px var(--song), 0 0 14px var(--song); }
+.sticker.claimed { box-shadow: 0 0 0 2px var(--gold), 0 3px 10px rgba(0,0,0,.35); }
+#settings { top: calc(max(16px, env(safe-area-inset-top)) + 54px); left: max(16px, env(safe-area-inset-left)); width: 330px;
+  padding: 12px 16px 14px; max-height: calc(100% - 100px); overflow: auto; z-index: 6; }
+#settings h2 { margin: 0; font: 800 17px var(--f-display); }
+#settings .about { color: var(--dim); font-size: 12.5px; margin: 4px 0 6px; }
+#toast { position: fixed; z-index: 7; left: 50%; bottom: max(24px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  max-width: min(360px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 14px; font: 12.5px var(--f-mono); text-align: center; animation: boing .4s ease-out; }
+#showBar { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); border-radius: 999px; flex: 0 0 auto; padding: 8px 14px; }
+body.clean #bar, body.clean #score, body.clean #heardList, body.clean #settings { display: none; }
+body:not(.clean) #showBar { display: none; }
 @keyframes pulse { 50% { opacity: .3; } }
 
 /* Field card: one bird at a time, the page's main moment. */
@@ -146,14 +134,9 @@ summary { cursor: pointer; color: var(--dim); font-size: 12px; padding: 4px 0; }
 .car { width: 26px; height: 26px; }
 .car svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); }
 
-/* Hidden-panels mode: a slim dock keeps the essentials reachable. */
-#dock { left: max(16px, env(safe-area-inset-left)); bottom: max(40px, calc(env(safe-area-inset-bottom) + 28px)); padding: 6px; display: flex; gap: 6px; align-items: center; }
-#dock .pts { font: 500 13px var(--f-mono); color: var(--gold); padding: 0 8px; white-space: nowrap; }
-body.clean #ctrl, body.clean #now { display: none; }
-body:not(.clean) #dock { display: none; }
 
 /* US regulatory sign, black on white, the way the road posts it. */
-#limit { position: fixed; z-index: 4; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+#limit { position: fixed; z-index: 4; bottom: max(24px, env(safe-area-inset-bottom)); left: max(16px, env(safe-area-inset-left));
   display: flex; gap: 10px; align-items: center; pointer-events: none; }
 #limit .sign { background: #fff; color: #111; border: 3px solid #111; outline: 2px solid #fff; border-radius: 6px;
   padding: 3px 9px 2px; text-align: center; font: 700 10px/1.05 var(--f-body); letter-spacing: .5px; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
@@ -161,14 +144,28 @@ body:not(.clean) #dock { display: none; }
 #limit .you { font: 500 13px var(--f-mono); background: var(--panel); border: 1px solid var(--line); padding: 5px 9px; border-radius: 8px; }
 #limit.over .you { background: var(--bad); color: #2a0600; border-color: transparent; animation: wiggle .5s infinite; }
 @media (max-height: 620px) {
-  #card { max-height: calc(100% - 32px); overflow: auto; }
+  #card { max-height: calc(100% - 120px); overflow: auto; }
   #card .chips { display: none; }
 }
-@media (max-width: 720px) {
-  #ctrl { left: 16px; right: 16px; width: auto; top: auto; bottom: 16px; max-height: 48%; }
-  #now { left: 16px; right: 16px; width: auto; max-height: 22%; }
-  #card { top: max(16px, env(safe-area-inset-top)); bottom: auto; left: 16px; right: 16px; width: auto; grid-template-columns: 128px minmax(0, 1fr); }
+/* Quiz stage shows only the blurred bird and the three choices. */
+#card.mystery .chips, #card.mystery .fact, #card.mystery .where, #card.mystery #claim { display: none; }
+@media (max-width: 1320px) { #bar .brand { display: none; } }
+@media (max-width: 1060px) { #prog { display: none; } #bar select { max-width: 170px; } }
+/* Phone: two-row bar (route, Start, gear / camera, speed), then score and stickers, card along the bottom. */
+@media (max-width: 760px) {
+  #bar { right: 16px; max-width: none; flex-wrap: wrap; border-radius: 18px; padding: 8px; gap: 6px; }
+  #bar select { flex: 1 1 calc(100% - 140px); min-width: 0; max-width: none; order: 1; }
+  #bar #go { order: 2; } #bar #gear { order: 3; }
+  #bar .seg { order: 4; flex: 1 1 auto; min-width: 0; } #bar .seg button { flex: 1; padding: 6px 4px; font-size: 12.5px; white-space: nowrap; }
+  #bar .spd { order: 5; }
+  #score { left: 16px; right: auto; top: calc(max(16px, env(safe-area-inset-top)) + 104px); gap: 10px; font-size: 12px; padding: 7px 12px; }
+  #score span:last-child { display: none; }
+  #heardList { top: calc(max(16px, env(safe-area-inset-top)) + 150px); left: 16px; right: 16px; max-width: none; }
+  #settings { left: 16px; right: 16px; width: auto; top: calc(max(16px, env(safe-area-inset-top)) + 104px); }
+  #limit { left: auto; right: 16px; bottom: auto; top: calc(max(16px, env(safe-area-inset-top)) + 210px); }
+  #card { left: 16px; right: 16px; width: auto; grid-template-columns: 120px minmax(0, 1fr); }
   #card .ph { min-height: 120px; }
+  #card .chips { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
@@ -186,50 +183,43 @@ body:not(.clean) #dock { display: none; }
   <div class="row"><button class="primary" id="saveKeys">Save and open map</button></div>
 </div>
 
-<div id="dock" class="panel">
-  <button class="icon" id="showPanels" title="Show controls (H)">☰ Controls</button>
-  <button class="icon primary" id="dockGo">Start</button>
-  <span class="pts" id="dockPts">0 pts</span>
-</div>
-
-<div id="ctrl" class="panel">
-  <div class="head"><h1>Birdsong Drive</h1><button class="icon" id="hidePanels" title="Hide panels (H)">Hide</button></div>
-  <div class="sub">Drive past recent eBird sightings around the Bay and hear each bird sing. Claim the ones you hear for today's points.</div>
-  <div class="score">
-    <div class="pts"><b id="ptsToday">0</b>today</div>
-    <div><b id="nClaimed">0</b>claimed</div>
-    <div><b id="streak">0</b>day streak</div>
-    <div><b id="nLife">0</b>life list</div>
-  </div>
-  <label>Route</label>
-  <select id="route"></select>
-  <label>Camera</label>
+<div id="bar" class="panel">
+  <span class="brand">Birdsong Drive</span>
+  <select id="route" aria-label="Route"></select>
   <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
-  <label>Speed <span id="speedV"></span></label>
-  <input id="speed" type="range" min="10" max="1000" step="1" value="40">
+  <div class="spd"><button id="slower" aria-label="Slower">−</button><span id="speedV"></span><button id="faster" aria-label="Faster">+</button></div>
+  <span id="prog"></span>
+  <button class="primary" id="go" disabled>Start</button>
+  <button class="icon" id="gear" aria-expanded="false" aria-label="Settings">⚙</button>
+</div>
+<button id="showBar" class="panel" title="Show controls (H)">☰ Controls</button>
+
+<div id="score" class="panel">
+  <span class="pts"><b id="ptsToday">0</b> pts</span><span><b id="streak">0</b>-day streak</span><span><b id="nLife">0</b> lifers</span><span><b id="nHeard">0</b> heard</span>
+</div>
+<div id="heardList"></div>
+
+<div id="settings" class="panel" hidden>
+  <h2>Birdsong Drive</h2>
+  <div class="about">Drive past recent eBird sightings around the Bay and hear each bird sing. Claim the ones you hear for today's points: rarer birds score more.</div>
   <div class="check"><input type="checkbox" id="quiz"><span>Quiz me: guess each bird by its song (+15)</span></div>
-  <div class="row">
-    <button class="primary" id="go" disabled>Start drive</button>
-    <button id="gps">Live GPS</button>
-  </div>
-  <details>
-    <summary>More settings</summary>
-    <label>Hearing range <span id="rangeV"></span></label>
-    <input id="range" type="range" min="150" max="1200" step="50" value="450">
-    <label>Sightings from the last <span id="backV"></span></label>
-    <input id="back" type="range" min="1" max="30" step="1" value="7">
-    <div class="check"><input type="checkbox" id="say" checked><span>Say each bird's name</span></div>
-    <div class="check"><input type="checkbox" id="sfx" checked><span>Game sounds, and bird poo when you speed</span></div>
-    <label>Voice (installed on this device)</label>
-    <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" class="icon">▶</button></div>
-    <div class="row"><button id="here">Load birds in view</button><button id="keys">Keys</button></div>
-  </details>
+  <div class="check"><input type="checkbox" id="say" checked><span>Say each bird's name</span></div>
+  <div class="check"><input type="checkbox" id="sfx" checked><span>Game sounds, and bird poo when you speed</span></div>
+  <label>Voice (installed on this device)</label>
+  <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" class="icon">▶</button></div>
+  <label>Speed <span id="speedK"></span></label>
+  <input id="speed" type="range" min="10" max="1000" step="1" value="40">
+  <label>Hearing range <span id="rangeV"></span></label>
+  <input id="range" type="range" min="150" max="1200" step="50" value="450">
+  <label>Sightings from the last <span id="backV"></span></label>
+  <input id="back" type="range" min="1" max="30" step="1" value="7">
+  <div class="row"><button id="gps">Live GPS</button><button id="here">Load birds in view</button></div>
+  <div class="row"><button id="hidePanels">Hide controls (H)</button><button id="keys">Keys</button></div>
   <div class="legend"><span><i style="background:#e9f2ec"></i>sighting</span><span><i style="background:var(--gold)"></i>notable</span><span><i style="background:var(--song)"></i>heard</span></div>
   <div id="status"></div>
   <div class="credits" id="credits">Sightings: eBird, Cornell Lab of Ornithology. Songs, photos and facts: iNaturalist and Wikipedia.</div>
 </div>
-
-<div id="now" class="panel"><h2>Heard on this drive · <span id="nHeard">0</span></h2><div id="heardList"><div class="credits">Start a drive. Birds near the road will sing as you pass.</div></div></div>
+<div id="toast" hidden></div>
 
 <div id="windshield" aria-hidden="true"></div>
 <div id="limit" hidden><div class="sign">SPEED<br>LIMIT<b id="limitV">25</b></div><div class="you" id="youV"></div></div>
@@ -285,17 +275,28 @@ $('saveKeys').onclick = () => {
   initMap();
 };
 $('keys').onclick = showSetup;
-function status(t) { $('status').textContent = t; }
+// Messages show briefly as a toast and stay readable under the gear.
+let toastTimer;
+function status(t) {
+  $('status').textContent = t; $('toast').textContent = t; $('toast').hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 4500);
+}
+const prog = t => $('prog').textContent = t;   // live drive readout in the bar
 
 ROUTES.forEach((r, i) => $('route').add(new Option(r.name, i)));
-const fmt = { speed: v => `${v} km/h · ${Math.round(v / 1.609)} mph`, range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
-for (const k of ['speed', 'range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
+const fmt = { range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
+for (const k of ['range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
+$('speed').oninput = () => { const v = +$('speed').value; $('speedV').textContent = `${Math.round(v / 1.609)} mph`; $('speedK').textContent = `${v} km/h`; };
+$('speed').oninput();
+const nudge = d => { $('speed').value = Math.max(10, Math.min(1000, +$('speed').value + d)); $('speed').oninput(); };
+$('slower').onclick = () => nudge(-8); $('faster').onclick = () => nudge(8);   // about 5 mph a tap
+$('gear').onclick = e => { e.stopPropagation(); const open = $('settings').hidden; $('settings').hidden = !open; $('gear').setAttribute('aria-expanded', open); };
+addEventListener('pointerdown', e => { if (!$('settings').hidden && !e.target.closest('#settings, #gear')) { $('settings').hidden = true; $('gear').setAttribute('aria-expanded', false); } });
 
 // Hide/show panels so street view gets the whole screen.
 function setClean(on) { document.body.classList.toggle('clean', on); store.set('bs.clean', on ? '1' : ''); }
-$('hidePanels').onclick = () => setClean(true);
-$('showPanels').onclick = () => setClean(false);
-$('dockGo').onclick = () => $('go').click();
+$('hidePanels').onclick = () => { $('settings').hidden = true; setClean(true); };
+$('showBar').onclick = () => setClean(false);
 addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) setClean(!document.body.classList.contains('clean')); });
 setClean(store.get('bs.clean') === '1');
 
@@ -440,9 +441,8 @@ function rollDay() {
 function saveGame() { store.set('bs.game', JSON.stringify(game)); renderScore(); }
 function renderScore() {
   rollDay();
-  $('ptsToday').textContent = game.pts; $('nClaimed').textContent = game.claimed.length;
+  $('ptsToday').textContent = game.pts;
   $('streak').textContent = game.streak; $('nLife').textContent = game.life.length;
-  $('dockPts').textContent = `${game.pts} pts`;
 }
 // Rarer around the Bay scores more: 1 spot = 50, 10 spots = 14, 100 spots = 10.
 function pointsFor(s, quizRight) {
@@ -612,7 +612,6 @@ function fillFacts(me) {
   chips.innerHTML = '';
   const chip = (txt, cls = '') => { const c = document.createElement('span'); c.className = 'chip ' + cls; c.textContent = txt; chips.append(c); };
   if (t?.family) chip(t.family);
-  chip('eBird ' + s.speciesCode);
   if (notable.has(s.key)) chip('★ notable here', 'gold');
   if (!game.life.includes(s.speciesCode)) chip('new for your life list', 'song');
   $('cFact').textContent = t?.fact || '';
@@ -642,7 +641,7 @@ $('claim').onclick = () => {
   popPoints(r.total, $('claim')); sfx.coin();
   $('card').classList.remove('claimed'); $('card').offsetHeight; $('card').classList.add('claimed');
   $('claim').disabled = true; $('claim').textContent = r.parts.map(([k, p]) => `${k} +${p}`).join(' · ');
-  me.v.el?.querySelector('.tag') && (me.v.el.querySelector('.tag').textContent = `+${r.total}`);
+  me.v.el?.classList.add('claimed');
   fillFacts(me);
 };
 $('cFact').onclick = () => $('card').classList.toggle('open');
@@ -723,19 +722,18 @@ function updateVoices(pos, rangeM) {
   }
 }
 function fillEntry(el, s) {
-  el.querySelector('.n').textContent = s.comName + (notable.has(s.key) ? ' ★' : '');
-  el.querySelector('.s').textContent = s.sciName;
-  findTaxon(s.sciName).then(t => { if (t?.photo) el.querySelector('img').src = t.photo.thumb; });
+  el.classList.remove('q'); el.textContent = ''; el.title = s.comName + (notable.has(s.key) ? ' ★' : '');
+  el.setAttribute('aria-label', el.title);
+  findTaxon(s.sciName).then(t => { if (t?.photo) { const i = new Image(); i.alt = ''; i.src = t.photo.thumb; el.replaceChildren(i); } });
 }
+// One sticker per bird heard; tap it to bring its card back.
 function addHeard(v) {
-  const list = $('heardList');
-  if (heardCount === 1) list.innerHTML = '';
-  const el = document.createElement('div'); el.className = voices.includes(v) ? 'bird live' : 'bird';
-  el.innerHTML = `<img alt=""><div><div class="n"></div><div class="s"></div></div><div class="tag"></div>`;
-  if ($('quiz').checked) { el.querySelector('.n').textContent = 'Mystery bird'; el.querySelector('.s').textContent = 'guess on the card'; }
+  const el = document.createElement('button');
+  el.className = 'sticker' + (voices.includes(v) ? ' live' : '') + (game.claimed.includes(v.s.speciesCode) ? ' claimed' : '');
+  if ($('quiz').checked) { el.classList.add('q'); el.textContent = '?'; el.title = 'Mystery bird'; }
   else fillEntry(el, v.s);
-  if (game.claimed.includes(v.s.speciesCode)) el.querySelector('.tag').textContent = '✓';
-  list.prepend(el); v.el = el;
+  el.onclick = () => { showCard(v); if (!voices.includes(v)) $('card').classList.add('quiet'); };
+  $('heardList').prepend(el); v.el = el;
   $('nHeard').textContent = heardCount;
 }
 function listen(pos) {
@@ -784,7 +782,7 @@ function resetHeard() {
   heardKeys.clear(); lastSpecies.clear(); heardCount = 0; voices.forEach(endVoice);
   $('heardList').innerHTML = ''; $('nHeard').textContent = 0; refreshBirds();
 }
-function driveLabel(on) { $('go').textContent = on ? 'Stop' : 'Start drive'; $('dockGo').textContent = on ? 'Stop' : 'Start'; }
+function driveLabel(on) { $('go').textContent = on ? 'Stop' : 'Start'; if (!on) prog(''); }
 function startDrive() {
   if (!route) return;
   resetHeard();
@@ -821,7 +819,7 @@ function tick(now) {
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
-  status(`${(drive.s / 1000).toFixed(1)} / ${(route.length / 1000).toFixed(1)} km`);
+  prog(`${(drive.s / 1000).toFixed(1)} / ${(route.length / 1000).toFixed(1)} km`);
   requestAnimationFrame(tick);
 }
 let camMode = store.get('bs.cam') || 'chase';
@@ -866,7 +864,7 @@ function startGps() {
       try { await loadSightingsAround([pos], 6); } catch (e) { status(e.message); }
     }
     listen(pos);
-    status(`GPS live · ${Math.round((p.coords.speed || 0) * 3.6)} km/h · ${sightings.size} sightings nearby`);
+    prog(`GPS · ${Math.round((p.coords.speed || 0) * 2.237)} mph`);
   }, e => status('GPS error: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000 });
 }
 
@@ -936,7 +934,7 @@ function openPopup(key, lngLat) {
 $('route').onchange = () => loadRoute(+$('route').value);
 $('back').onchange = () => route && loadRoute(+$('route').value);
 $('go').onclick = () => drive ? stopDrive() : startDrive();
-$('gps').onclick = startGps;
+$('gps').onclick = () => { $('settings').hidden = true; startGps(); };
 $('here').onclick = async () => {
   const c = map.getCenter(), b = map.getBounds();
   const km = Math.min(50, Math.max(2, Math.round(dist([c.lng, c.lat], b.getNorthEast().toArray()) / 1000)));
