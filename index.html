@@ -85,7 +85,7 @@ button:disabled { opacity: .45; cursor: default; }
   <label>Route</label>
   <select id="route"></select>
   <label>Speed <span id="speedV"></span></label>
-  <input id="speed" type="range" min="20" max="200" step="10" value="60">
+  <input id="speed" type="range" min="20" max="1000" step="10" value="80">
   <label>Hearing range <span id="rangeV"></span></label>
   <input id="range" type="range" min="150" max="1200" step="50" value="450">
   <label>Sightings from the last <span id="backV"></span></label>
@@ -384,7 +384,7 @@ function startDrive() {
   if (!route) return;
   resetHeard();
   drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)) };
-  $('go').textContent = 'Stop'; map.easeTo({ pitch: 62, zoom: 15.6, duration: 800 });
+  $('go').textContent = 'Stop'; drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
 }
 function stopDrive() {
@@ -393,7 +393,7 @@ function stopDrive() {
 }
 function tick(now) {
   if (!drive || drive.mode !== 'sim') return;
-  const dt = Math.min(.1, (now - drive.t) / 1000); drive.t = now;
+  const dt = Math.min(.25, (now - drive.t) / 1000); drive.t = now;
   drive.s += (+$('speed').value / 3.6) * dt;
   if (drive.s >= route.length) { status('Arrived. ' + heardCount + ' birds heard.'); stopDrive(); return; }
   const pos = along(route, drive.s), ahead = along(route, drive.s + 80);
@@ -401,7 +401,11 @@ function tick(now) {
   let diff = ((target - drive.bear + 540) % 360) - 180;
   drive.bear = (drive.bear + diff * Math.min(1, dt * 2) + 360) % 360;
   carMarker.setLngLat(pos).setRotation(drive.bear);
-  map.jumpTo({ center: pos, bearing: drive.bear });
+  // Pull the camera back as speed rises so the drive reads as fast; ease toward it each frame.
+  const kmh = +$('speed').value, k = Math.min(1, dt * 1.5);
+  const targetZoom = Math.max(12.8, Math.min(16, 16.3 - Math.log2(kmh / 40) * 0.9));
+  drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (60 - drive.pitch) * k;
+  map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
   status(`${(drive.s / 1000).toFixed(1)} / ${(route.length / 1000).toFixed(1)} km`);
   requestAnimationFrame(tick);
