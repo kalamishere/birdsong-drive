@@ -252,8 +252,10 @@ body:not(.clean) #showBar { display: none; }
   <div class="check"><input type="checkbox" id="sfx" checked><span>Game sounds, and bird poo when you speed</span></div>
   <label>Voice (installed on this device)</label>
   <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" class="icon">▶</button></div>
+  <label>Units</label>
+  <div class="seg" id="units"><button data-u="mi">Miles · mph</button><button data-u="km">Kilometres · km/h</button></div>
   <label>Speed <span id="speedK"></span></label>
-  <input id="speed" type="range" min="10" max="1000" step="1" value="40">
+  <input id="speed" type="range" min="10" max="1000" step="any" value="40.2">
   <label>Hearing range <span id="rangeV"></span></label>
   <input id="range" type="range" min="150" max="1200" step="50" value="450">
   <label>Sightings from the last <span id="backV"></span></label>
@@ -329,16 +331,34 @@ function status(t) {
 const prog = t => $('prog').textContent = t;   // live drive readout in the bar
 
 ROUTES.forEach((r, i) => $('route').add(new Option(r.name, i)));
-const fmt = { range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
+// One unit system everywhere. Internally everything stays metric (km/h, metres).
+let units = store.get('bs.units') || 'mi';
+const MI = 1.609344;
+const fmtSpeed = kmh => units === 'mi' ? `${Math.round(kmh / MI)} mph` : `${Math.round(kmh)} km/h`;
+const fmtDist = m => units === 'mi'
+  ? (m < 320 ? `${Math.round(m * 3.28084 / 10) * 10} ft` : `${(m / 1609.344).toFixed(1)} mi`)
+  : (m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`);
+const speedStep = () => units === 'mi' ? 5 * MI : 5;   // one tap = 5 mph or 5 km/h
+const fmt = { range: v => fmtDist(+v), back: v => `${v} day${v > 1 ? 's' : ''}` };
 for (const k of ['range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
-$('speed').oninput = () => { const v = +$('speed').value; $('speedV').textContent = `${Math.round(v / 1.609)} mph`; $('speedK').textContent = `${v} km/h`; };
+$('speed').oninput = () => { $('speedV').textContent = $('speedK').textContent = fmtSpeed(+$('speed').value); };
+function setUnits(u) {
+  units = u; store.set('bs.units', u);
+  document.querySelectorAll('#units button').forEach(b => b.setAttribute('aria-pressed', b.dataset.u === u));
+  $('speed').oninput(); $('range').oninput?.();
+  // Snap to a round number in the new unit so +/- lands on 25, 30, 35…
+  const step = speedStep(); $('speed').value = Math.max(step, Math.round(+$('speed').value / step) * step); $('speed').oninput();
+}
+document.querySelectorAll('#units button').forEach(b => b.onclick = () => setUnits(b.dataset.u));
+setUnits(units);
 $('speed').oninput();
 // The driver's own speed wins over the posted limit once they've touched it.
 let speedChosen = false;
-const nudge = d => { speedChosen = true; $('speed').value = Math.max(10, Math.min(1000, +$('speed').value + d)); $('speed').oninput(); };
+const nudge = n => { speedChosen = true; const step = speedStep();
+  $('speed').value = Math.max(step, Math.min(1000, (Math.round(+$('speed').value / step) + n) * step)); $('speed').oninput(); };
 $('speed').addEventListener('change', () => speedChosen = true);
-// Tap = about 5 mph; hold to keep accelerating.
-for (const [id, d] of [['slower', -8], ['faster', 8]]) {
+// Tap = one step (5 mph or 5 km/h); hold to keep accelerating.
+for (const [id, d] of [['slower', -1], ['faster', 1]]) {
   let hold;
   $(id).onpointerdown = e => { e.preventDefault(); nudge(d); let n = 0; hold = setInterval(() => nudge(d * (++n > 8 ? 3 : 1)), 140); };
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) $(id).addEventListener(ev, () => clearInterval(hold));
@@ -360,10 +380,10 @@ $('showBar').onclick = () => setClean(false);
 addEventListener('keydown', e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
   if (e.key.toLowerCase() === 'h') setClean(!document.body.classList.contains('clean'));
-  // Up/Down change speed by about 5 mph (Shift for 15), instead of panning the map.
+  // Up/Down change speed by 5 mph or 5 km/h (Shift for 15), instead of panning the map.
   if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
     e.preventDefault(); e.stopPropagation();
-    nudge((e.key === 'ArrowUp' ? 8 : -8) * (e.shiftKey ? 3 : 1));
+    nudge((e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 3 : 1));
   }
 }, true);
 setClean(store.get('bs.clean') === '1');
@@ -643,9 +663,9 @@ let lastPoo = 0;
 function checkSpeed(kmh, limitKmh, unit) {
   const box = $('limit');
   if (!limitKmh) { box.hidden = true; return; }
-  const mph = true, show = v => Math.round(v / 1.609);   // Mapbox reports km/h, Bay Area roads are posted in mph
+  const show = v => Math.round(units === 'mi' ? v / MI : v);   // Mapbox reports km/h; show it in the chosen unit
   box.hidden = false; $('limitV').textContent = show(limitKmh);
-  $('youV').textContent = `You ${show(kmh)} ${mph ? 'mph' : 'km/h'}`;
+  $('youV').textContent = `You ${fmtSpeed(kmh)}`;
   const over = kmh > limitKmh * 1.1;
   box.classList.toggle('over', over);
   if (over && performance.now() - lastPoo > 4000) {
@@ -670,7 +690,7 @@ async function showCard(v) {
   $('cEyebrow').textContent = 'Singing now';
   $('cFact').textContent = ''; $('cCredit').textContent = ''; $('cChips').innerHTML = '';
   const spots = spotsFor(s.speciesCode), dM = Math.round(dist(drive?.pos || s.lngLat, s.lngLat));
-  $('cWhere').textContent = `×${s.howMany ?? 'X'} at ${s.locName.split(/ - |--/)[0]} · ${s.obsDt.slice(5, 10)} · ${dM} m off the road · ${spots} spot${spots > 1 ? 's' : ''} around the Bay`;
+  $('cWhere').textContent = `×${s.howMany ?? 'X'} at ${s.locName.split(/ - |--/)[0]} · ${s.obsDt.slice(5, 10)} · ${fmtDist(dM)} off the road · ${spots} spot${spots > 1 ? 's' : ''} around the Bay`;
   const pool = shuffle([...new Map([...sightings.values()].filter(o => o.speciesCode !== s.speciesCode && hasAudio(o.sciName))
     .map(o => [o.speciesCode, o])).values()]).slice(0, 2);
   const quiz = $('quiz').checked && pool.length === 2 && !game.claimed.includes(s.speciesCode);
@@ -880,7 +900,7 @@ async function loadRoute(i) {
   try { await loadSightingsAround(samples, SAMPLE_KM); }
   catch (e) { status(e.message); return; }
   const nSp = new Set([...sightings.values()].map(s => s.speciesCode)).size;
-  status(`${(route.length / 1000).toFixed(1)} km · ${sightings.size} sightings · ${nSp} species. Press Start.`);
+  status(`${fmtDist(route.length)} · ${sightings.size} sightings · ${nSp} species. Press Start.`);
   $('go').disabled = false;
 }
 function resetHeard() {
@@ -893,7 +913,7 @@ function startDrive() {
   resetHeard();
   // Start at the posted limit for the first stretch that has one.
   const first = route.limits?.find(Boolean);
-  if (first && !speedChosen) { $('speed').value = Math.round(first.kmh); $('speed').oninput(); }
+  if (first && !speedChosen) { $('speed').value = first.kmh; $('speed').oninput(); }
   drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
   driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
@@ -924,7 +944,8 @@ function tick(now) {
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
-  prog(`${(drive.s / 1000).toFixed(1)} / ${(route.length / 1000).toFixed(1)} km`);
+  const long = m => (m / (units === 'mi' ? 1609.344 : 1000)).toFixed(1);
+  prog(`${long(drive.s)} / ${long(route.length)} ${units === 'mi' ? 'mi' : 'km'}`);
   requestAnimationFrame(tick);
 }
 let camMode = store.get('bs.cam') || 'chase';
@@ -956,7 +977,7 @@ function startGps() {
     const pos = [p.coords.longitude, p.coords.latitude];
     if (pos[0] < BAY[0][0] || pos[0] > BAY[1][0] || pos[1] < BAY[0][1] || pos[1] > BAY[1][1]) {
       const km = Math.round(dist(pos, [-122.42, 37.77]) / 1000);
-      stopDrive(); status(`Live GPS only works in the Bay Area. You are ${km.toLocaleString()} km from San Francisco, so try a route instead.`);
+      stopDrive(); status(`Live GPS only works in the Bay Area. You are ${Math.round(units === 'mi' ? km / MI : km).toLocaleString()} ${units === 'mi' ? 'miles' : 'km'} from San Francisco, so try a route instead.`);
       return;
     }
     const head = p.coords.heading ?? (drive.prev ? bearing(drive.prev, pos) : 0);
@@ -969,7 +990,7 @@ function startGps() {
       try { await loadSightingsAround([pos], 6); } catch (e) { status(e.message); }
     }
     listen(pos);
-    prog(`GPS · ${Math.round((p.coords.speed || 0) * 2.237)} mph`);
+    prog(`GPS · ${fmtSpeed((p.coords.speed || 0) * 3.6)}`);
   }, e => status('GPS error: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000 });
 }
 
