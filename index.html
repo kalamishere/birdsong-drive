@@ -205,7 +205,7 @@ body:not(.clean) #dock { display: none; }
   <label>Camera</label>
   <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
   <label>Speed <span id="speedV"></span></label>
-  <input id="speed" type="range" min="20" max="1000" step="10" value="80">
+  <input id="speed" type="range" min="10" max="1000" step="1" value="40">
   <div class="check"><input type="checkbox" id="quiz"><span>Quiz me: guess each bird by its song (+15)</span></div>
   <div class="row">
     <button class="primary" id="go" disabled>Start drive</button>
@@ -287,7 +287,7 @@ $('keys').onclick = showSetup;
 function status(t) { $('status').textContent = t; }
 
 ROUTES.forEach((r, i) => $('route').add(new Option(r.name, i)));
-const fmt = { speed: v => `${v} km/h`, range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
+const fmt = { speed: v => `${v} km/h · ${Math.round(v / 1.609)} mph`, range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
 for (const k of ['speed', 'range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
 
 // Hide/show panels so street view gets the whole screen.
@@ -787,6 +787,9 @@ function driveLabel(on) { $('go').textContent = on ? 'Stop' : 'Start drive'; $('
 function startDrive() {
   if (!route) return;
   resetHeard();
+  // Start at the posted limit for the first stretch that has one.
+  const first = route.limits?.find(Boolean);
+  if (first) { $('speed').value = Math.round(first.kmh); $('speed').oninput(); }
   drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
   driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
