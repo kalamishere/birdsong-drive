@@ -1,0 +1,39 @@
+name: Refresh sightings and deploy
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build site
+        env:
+          EBIRD_KEY: ${{ secrets.EBIRD_KEY }}
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          python scripts/fetch_sightings.py _site/sightings.json
+          printf 'window.BIRDSONG_CONFIG = { mapboxToken: "%s", sightingsUrl: "sightings.json" };\n' "$MAPBOX_TOKEN" > _site/config.js
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
