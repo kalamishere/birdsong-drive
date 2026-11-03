@@ -134,6 +134,9 @@ body:not(.clean) #showBar { display: none; }
 #card .eq i:nth-child(2) { animation-delay: -.3s } #card .eq i:nth-child(3) { animation-delay: -.6s } #card .eq i:nth-child(4) { animation-delay: -.15s }
 @keyframes eq { 0%, 100% { height: 4px } 50% { height: 18px } }
 #card.quiet .eq { display: none; }
+#card .play { position: absolute; left: 8px; bottom: 8px; padding: 5px 11px; border-radius: 999px; border: 0; background: rgba(0,0,0,.55); font-size: 12px; }
+#card:not(.quiet) .play { display: none; }
+#card.replaying .eq { display: flex; } #card.replaying .play { left: auto; right: 8px; }
 #card .body { padding: 10px 12px 12px; min-width: 0; }
 #card .name { font: 800 19px/1.1 var(--f-display); letter-spacing: -.3px; text-wrap: balance; }
 #card .latin { font: italic 15px var(--f-latin); color: var(--dim); }
@@ -267,7 +270,7 @@ body:not(.clean) #showBar { display: none; }
 <div id="limit" hidden><div class="sign">SPEED<br>LIMIT<b id="limitV">25</b></div><div class="you" id="youV"></div></div>
 
 <div id="card" class="panel" hidden>
-  <div class="ph"><img id="cImgBg" class="bg" alt=""><img id="cImg" alt=""><button class="icon close" id="cClose" aria-label="Close">✕</button><div class="eq"><i></i><i></i><i></i><i></i></div></div>
+  <div class="ph"><img id="cImgBg" class="bg" alt=""><img id="cImg" alt=""><button class="icon close" id="cClose" aria-label="Close">✕</button><div class="eq"><i></i><i></i><i></i><i></i></div><button class="icon play" id="cPlay" aria-label="Play song">▶ Play</button></div>
   <div class="body">
     <div class="eyebrow" id="cEyebrow">Singing now</div>
     <div class="name" id="cName"></div>
@@ -629,6 +632,7 @@ const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).
 async function showCard(v) {
   if (cardBird && cardBird.quizOpen) return;            // never yank an unanswered quiz
   const s = v.s, card = $('card');
+  stopReplay();
   cardBird = { v, s, quizOpen: false, quizRight: false };
   const me = cardBird;
   card.hidden = false; card.classList.remove('quiet', 'open');
@@ -702,7 +706,19 @@ $('claim').onclick = () => {
   fillFacts(me);
 };
 $('cFact').onclick = () => $('card').classList.toggle('open');
-$('cClose').onclick = () => { if (cardBird?.quizOpen) reveal(cardBird, false, null); $('card').hidden = true; cardBird = null; };
+// Replay a bird's song from its card (stickers open the card and start this straight away).
+let replay = null;
+function stopReplay() { replay?.pause(); replay = null; $('card').classList.remove('replaying'); $('cPlay').textContent = '▶ Play'; }
+async function playReplay(s) {
+  stopReplay();
+  const snd = await findSound(s.sciName);
+  if (!snd || cardBird?.s !== s) { if (!snd) status('No recording found for this bird.'); return; }
+  replay = new Audio(snd.url); replay.play().catch(() => {});
+  $('card').classList.add('replaying'); $('cPlay').textContent = '■ Stop';
+  replay.onended = stopReplay;
+}
+$('cPlay').onclick = () => replay ? stopReplay() : cardBird && playReplay(cardBird.s);
+$('cClose').onclick = () => { stopReplay(); if (cardBird?.quizOpen) reveal(cardBird, false, null); $('card').hidden = true; cardBird = null; };
 function cardVoiceEnded(v) {
   if (cardBird?.v !== v) return;
   $('card').classList.add('quiet');
@@ -789,7 +805,10 @@ function addHeard(v) {
   el.className = 'sticker' + (voices.includes(v) ? ' live' : '') + (game.claimed.includes(v.s.speciesCode) ? ' claimed' : '');
   if ($('quiz').checked) { el.classList.add('q'); el.textContent = '?'; el.title = 'Mystery bird'; }
   else fillEntry(el, v.s);
-  el.onclick = () => { showCard(v); if (!voices.includes(v)) $('card').classList.add('quiet'); };
+  el.onclick = () => {
+    if (voices.includes(v)) { showCard(v); return; }      // still singing: just bring the card up
+    showCard(v); $('card').classList.add('quiet'); playReplay(v.s);
+  };
   $('heardList').prepend(el); v.el = el;
   $('nHeard').textContent = heardCount;
 }
