@@ -29,6 +29,9 @@ button { flex: 1; padding: 9px 10px; border-radius: 9px; border: 1px solid var(-
   background: rgba(255,255,255,.08); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
 button.primary { background: var(--accent); color: #0b1a12; border-color: transparent; }
 button:disabled { opacity: .45; cursor: default; }
+.seg { display: flex; margin-top: 4px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #0b1a12; font-weight: 650; }
 .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--dim); font-size: 12px; }
 #status { margin-top: 10px; font-size: 12px; color: var(--dim); min-height: 1.4em; }
 #now { right: 16px; top: 16px; width: 290px; padding: 12px 14px; max-height: calc(100% - 32px); overflow: auto; }
@@ -90,6 +93,8 @@ button:disabled { opacity: .45; cursor: default; }
   <input id="range" type="range" min="150" max="1200" step="50" value="450">
   <label>Sightings from the last <span id="backV"></span></label>
   <input id="back" type="range" min="1" max="30" step="1" value="7">
+  <label>Camera</label>
+  <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
   <div class="check"><input type="checkbox" id="say" checked><span>Say each bird's name</span></div>
   <label>Voice <span style="opacity:.7">(voices installed on this device)</span></label>
   <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" style="flex:0 0 auto">▶</button></div>
@@ -404,13 +409,32 @@ function tick(now) {
   carMarker.setLngLat(pos).setRotation(drive.bear);
   // Pull the camera back as speed rises so the drive reads as fast; ease toward it each frame.
   const kmh = +$('speed').value, k = Math.min(1, dt * 1.5);
-  const targetZoom = Math.max(12.8, Math.min(16, 16.3 - Math.log2(kmh / 40) * 0.9));
-  drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (60 - drive.pitch) * k;
+  const [targetZoom, targetPitch] = camTarget(kmh);
+  drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
   status(`${(drive.s / 1000).toFixed(1)} / ${(route.length / 1000).toFixed(1)} km`);
   requestAnimationFrame(tick);
 }
+let camMode = store.get('bs.cam') || 'chase';
+// Street sits just above the roofs among the 3D buildings; chase pulls back as speed rises.
+function camTarget(kmh) {
+  if (camMode === 'street') return [18.2 - Math.max(0, Math.log2(kmh / 60)) * 0.4, 78];
+  if (camMode === 'overview') return [12.6, 25];
+  return [Math.max(12.8, Math.min(16, 16.3 - Math.log2(kmh / 40) * 0.9)), 60];
+}
+function setCam(mode) {
+  camMode = mode; store.set('bs.cam', mode);
+  document.querySelectorAll('#cam button').forEach(b => b.setAttribute('aria-pressed', b.dataset.cam === mode));
+  if (drive?.mode === 'gps') map.easeTo({ zoom: camTarget(36)[0], pitch: camTarget(36)[1], duration: 800 });
+  else if (!drive && route) {   // parked: drop to the car's spot so the view can be tried before driving
+    const pos = carMarker.getLngLat().toArray(), [z, pt] = camTarget(+$('speed').value);
+    map.easeTo({ center: pos, zoom: z, pitch: pt, bearing: bearing(pos, along(route, 80)), duration: 1200 });
+  }
+}
+document.querySelectorAll('#cam button').forEach(b => b.onclick = () => setCam(b.dataset.cam));
+setCam(camMode);
+
 function startGps() {
   if (drive) { stopDrive(); return; }
   if (!navigator.geolocation) { status('No geolocation in this browser.'); return; }
@@ -427,7 +451,8 @@ function startGps() {
     const head = p.coords.heading ?? (drive.prev ? bearing(drive.prev, pos) : 0);
     drive.prev = pos;
     carMarker.setLngLat(pos).setRotation(head).addTo(map);
-    map.easeTo({ center: pos, bearing: head, pitch: 60, zoom: 15.6, duration: 900 });
+    const [gz, gp] = camTarget((p.coords.speed || 10) * 3.6);
+    map.easeTo({ center: pos, bearing: head, pitch: gp, zoom: gz, duration: 900 });
     if (!drive.loadedAt || dist(drive.loadedAt, pos) > 3000) {   // refresh sightings every 3 km
       drive.loadedAt = pos;
       try { await loadSightingsAround([pos], 6); } catch (e) { status(e.message); }
