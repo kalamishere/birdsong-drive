@@ -6,6 +6,7 @@ A driving map of the San Francisco Bay Area that plays the songs of birds recent
 - Sightings: eBird API 2.0 (Cornell Lab of Ornithology), refreshed every 6 hours by a GitHub Action.
 - Songs and photos: iNaturalist research-grade observations. Each one credits its author in the app.
 - Spoken bird names use the voices installed on the visitor's device.
+- Game: claim birds you hear ("That's my bird!") for daily points. Rarer birds score more. There's a day streak, a life list, an optional song quiz, and posted speed limits from Mapbox. Speeding gets bird poo on the screen.
 
 ## Setup
 Two repository secrets are needed:

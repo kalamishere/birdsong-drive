@@ -2,71 +2,169 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Birdsong Drive</title>
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js"></script>
 <style>
+/* Field notebook on a dashboard: dark marsh panels over a dawn map; Latin names in serif italic,
+   counts and codes in mono like a checklist; one warm "goldfinch" accent for points and rarities. */
 :root {
-  --bg: #0f1412; --panel: rgba(18, 24, 21, .92); --ink: #eef3ef; --dim: #9fb0a6;
-  --line: rgba(255,255,255,.12); --accent: #7fd6a5; --gold: #ffc857; --heard: #5ec8ff;
+  --panel: rgba(16, 23, 20, .93); --panel-2: rgba(255,255,255,.06); --ink: #eef3ef; --dim: #9db0a5;
+  --line: rgba(255,255,255,.11); --moss: #7fd6a5; --gold: #ffcb45; --song: #5ec8ff; --bad: #ff7a6b;
+  --bg: #0f1412; --on-accent: #0b1a12;
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --f-latin: "Instrument Serif", Georgia, serif;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); }
 #map { position: absolute; inset: 0; }
 .panel { position: absolute; z-index: 2; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 14px; backdrop-filter: blur(8px); }
-#ctrl { top: 16px; left: 16px; width: 330px; padding: 14px 16px; max-height: calc(100% - 32px); overflow: auto; }
-h1 { margin: 0 0 2px; font-size: 18px; letter-spacing: .2px; }
-.sub { color: var(--dim); font-size: 12px; margin-bottom: 12px; }
-label { display: block; font-size: 12px; color: var(--dim); margin: 10px 0 4px; }
-select, input[type=text], input[type=password] { width: 100%; padding: 8px 10px; border-radius: 8px;
-  border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--ink); font: inherit; }
-input[type=range] { width: 100%; accent-color: var(--accent); }
+  border-radius: 14px; backdrop-filter: blur(10px); }
+#ctrl { top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); width: 320px;
+  padding: 14px 16px; max-height: calc(100% - 32px); overflow: auto; }
+.head { display: flex; align-items: center; gap: 8px; }
+h1 { margin: 0; font: 800 21px/1.1 var(--f-display); letter-spacing: -.2px; flex: 1; }
+.sub { color: var(--dim); font-size: 12.5px; margin: 4px 0 10px; }
+label { display: block; font-size: 11px; color: var(--dim); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: .7px; }
+label span { text-transform: none; letter-spacing: 0; color: var(--ink); font-family: var(--f-mono); }
+select, input[type=password] { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel-2); color: var(--ink); font: inherit; }
+input[type=range] { width: 100%; accent-color: var(--moss); }
 .row { display: flex; gap: 8px; margin-top: 12px; }
-button { flex: 1; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line);
-  background: rgba(255,255,255,.08); color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; }
-button.primary { background: var(--accent); color: #0b1a12; border-color: transparent; }
+button { flex: 1; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel-2);
+  color: var(--ink); font: 600 13.5px var(--f-body); cursor: pointer; }
+button:hover:not(:disabled) { background: rgba(255,255,255,.12); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--song); outline-offset: 2px; }
+button.primary { background: var(--moss); color: var(--on-accent); border-color: transparent; }
 button:disabled { opacity: .45; cursor: default; }
-.seg { display: flex; margin-top: 4px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+button.icon { flex: 0 0 auto; padding: 6px 9px; font-weight: 500; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
 .seg button { border: 0; border-radius: 0; font-weight: 500; }
-.seg button[aria-pressed="true"] { background: var(--accent); color: #0b1a12; font-weight: 650; }
-.check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--dim); font-size: 12px; }
-#status { margin-top: 10px; font-size: 12px; color: var(--dim); min-height: 1.4em; }
-#now { right: 16px; top: 16px; width: 290px; padding: 12px 14px; max-height: calc(100% - 32px); overflow: auto; }
-#now h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
-.bird { padding: 8px 0; border-top: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--moss); color: var(--on-accent); font-weight: 600; }
+.check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+.check input { accent-color: var(--moss); width: 16px; height: 16px; }
+details { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 6px; }
+summary { cursor: pointer; color: var(--dim); font-size: 12px; padding: 4px 0; }
+#status { margin-top: 10px; font-size: 12px; color: var(--dim); min-height: 1.4em; font-family: var(--f-mono); }
+.credits { color: var(--dim); font-size: 11px; margin-top: 8px; opacity: .8; }
+
+/* Score strip: today's points lead, the rest are checklist-style tallies. */
+.score { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
+.score div { background: var(--panel-2); border-radius: 9px; padding: 6px 8px; font-size: 10.5px; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .5px; }
+.score b { display: block; font: 500 17px var(--f-mono); color: var(--ink); text-transform: none; letter-spacing: 0;
+  font-variant-numeric: tabular-nums; }
+.score .pts b { color: var(--gold); }
+.legend { display: flex; gap: 12px; margin-top: 10px; font-size: 11px; color: var(--dim); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+#now { right: max(16px, env(safe-area-inset-right)); top: max(16px, env(safe-area-inset-top)); width: 270px;
+  padding: 12px 14px; max-height: 42%; overflow: auto; }
+#now h2, #card .eyebrow { margin: 0 0 6px; font: 500 10.5px var(--f-mono); text-transform: uppercase; letter-spacing: 1.2px; color: var(--dim); }
+.bird { display: grid; grid-template-columns: 40px 1fr auto; gap: 0 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
 .bird:first-of-type { border-top: 0; }
-.bird .n { font-weight: 650; }
-.bird .s { font-style: italic; color: var(--dim); font-size: 12px; }
-.bird .m { color: var(--dim); font-size: 11px; margin-top: 2px; }
-.bird { display: grid; grid-template-columns: 52px 1fr; gap: 0 10px; align-items: start; }
-.bird .ph { grid-row: span 3; width: 52px; height: 52px; border-radius: 8px; object-fit: cover; background: rgba(255,255,255,.06); }
-.bird.live { grid-template-columns: 1fr; }
-.bird.live .ph { grid-row: auto; width: 100%; height: 170px; margin-bottom: 6px; transition: height .3s; }
-.bird .cr, .pop .cr { grid-column: 1 / -1; font-size: 10px; color: var(--dim); opacity: .7; }
-.bird:not(.live) .cr { display: none; }
-.pop img { width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 6px; display: block; }
-.bird.live .n::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px;
-  border-radius: 50%; background: var(--heard); box-shadow: 0 0 8px var(--heard); animation: pulse 1s infinite; }
+.bird img { width: 40px; height: 40px; border-radius: 7px; object-fit: cover; background: var(--panel-2); }
+.bird .n { font-weight: 600; font-size: 13px; line-height: 1.2; }
+.bird .s { font: italic 13px var(--f-latin); color: var(--dim); }
+.bird .tag { font: 500 11px var(--f-mono); color: var(--gold); }
+.bird.live .n::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: 1px;
+  border-radius: 50%; background: var(--song); box-shadow: 0 0 8px var(--song); animation: pulse 1s infinite; }
 @keyframes pulse { 50% { opacity: .3; } }
-.stats { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--dim); }
-.stats b { color: var(--ink); font-size: 16px; display: block; }
+
+/* Field card: one bird at a time, the page's main moment. */
+#card { left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(380px, calc(100% - 32px));
+  z-index: 3; overflow: hidden; animation: boing .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes boing { 0% { transform: translate(-50%, 60px) scale(.85); opacity: 0; } 60% { opacity: 1; } }
+#card.claimed .name { animation: wiggle .5s; }
+@keyframes wiggle { 25% { transform: rotate(-4deg) scale(1.08); } 60% { transform: rotate(3deg); } }
+.ping { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--song); animation: ping 1.4s ease-out forwards; pointer-events: none; }
+@keyframes ping { 0% { transform: scale(.3); opacity: 1; } 100% { transform: scale(4); opacity: 0; } }
+.ping.gold { border-color: var(--gold); }
+/* Windscreen: splats land, then a wiper pivoting from the bottom edge clears them. */
+#windshield { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
+.splat { position: absolute; width: 130px; transform-origin: 50% 0; animation: splat .28s cubic-bezier(.2, 1.8, .4, 1) both; }
+@keyframes splat { 0% { transform: scale(.1, .1) rotate(var(--r)); } 70% { transform: scale(1.15, .85) rotate(var(--r)); } 100% { transform: scale(1) rotate(var(--r)); } }
+.splat .drip { animation: drip 1.2s .3s ease-in both; transform-box: fill-box; transform-origin: top; }
+@keyframes drip { from { transform: scaleY(.2); } }
+.splat.gone { transition: opacity .35s, filter .35s, translate .35s; opacity: 0; filter: blur(6px); translate: var(--dx) 10px; }
+.wiper { position: absolute; left: 50%; bottom: -14px; width: 10px; height: 118vmax; margin-left: -5px; transform-origin: 50% 100%;
+  background: linear-gradient(90deg, #111 0 40%, #3a3a3a 40% 60%, #111 60%); border-radius: 6px; box-shadow: 0 0 12px rgba(0,0,0,.5); }
+.wiper::before { content: ""; position: absolute; left: -9px; right: -9px; top: 0; bottom: 30%; background: #1b1b1b; border-radius: 4px; }
+#card .ph { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: var(--panel-2); }
+#card .ph img { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter .5s; }
+#card.mystery .ph img { filter: blur(18px) saturate(.6); }
+#card .ph .close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.45); border: 0; padding: 4px 9px; }
+#card .eq { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 3px; align-items: end; height: 18px; }
+#card .eq i { width: 4px; background: var(--song); border-radius: 2px; animation: eq .9s infinite ease-in-out; }
+#card .eq i:nth-child(2) { animation-delay: -.3s } #card .eq i:nth-child(3) { animation-delay: -.6s } #card .eq i:nth-child(4) { animation-delay: -.15s }
+@keyframes eq { 0%, 100% { height: 4px } 50% { height: 18px } }
+#card.quiet .eq { display: none; }
+#card .body { padding: 12px 14px 14px; }
+#card .name { font: 800 24px/1.1 var(--f-display); letter-spacing: -.3px; text-wrap: balance; }
+#card .latin { font: italic 17px var(--f-latin); color: var(--dim); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font: 500 11px var(--f-mono); padding: 2px 7px; border-radius: 99px; background: var(--panel-2); color: var(--dim); }
+.chip.gold { background: rgba(255,203,69,.15); color: var(--gold); }
+.chip.song { background: rgba(94,200,255,.13); color: var(--song); }
+#card .fact { font-size: 13px; margin-top: 8px; color: #d6e0da; }
+#card .where { font: 12px var(--f-mono); color: var(--dim); margin-top: 8px; }
+#card .credit { font-size: 10px; color: var(--dim); opacity: .7; margin-top: 6px; }
+#card .quiz { display: grid; gap: 6px; margin-top: 10px; }
+#card .quiz button { text-align: left; font-weight: 500; }
+#card .quiz button.right { background: var(--moss); color: var(--on-accent); }
+#card .quiz button.wrong { background: var(--bad); color: var(--on-accent); }
+#claim { margin-top: 10px; width: 100%; padding: 11px; font: 800 16px var(--f-display); background: var(--gold); color: #261b00; border: 0; }
+#claim:disabled { background: var(--panel-2); color: var(--dim); opacity: 1; font: 500 13px var(--f-body); }
+.pop { position: fixed; z-index: 9; font: 800 30px var(--f-display); color: var(--gold); pointer-events: none;
+  text-shadow: 0 2px 12px rgba(0,0,0,.6); animation: pop 1.3s ease-out forwards; }
+@keyframes pop { to { transform: translateY(-70px); opacity: 0; } }
+
 #setup { inset: 0; margin: auto; width: min(440px, calc(100% - 32px)); height: fit-content; padding: 20px; z-index: 5; }
 #setup p { color: var(--dim); font-size: 13px; }
-#setup a, .mapboxgl-popup a { color: var(--accent); }
-.legend { display: flex; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--dim); }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
-.mapboxgl-popup-content { background: #17201b; color: var(--ink); border-radius: 10px; padding: 10px 12px; }
+#setup a, .mapboxgl-popup a { color: var(--moss); }
+.mapboxgl-popup-content { background: #17201b; color: var(--ink); border-radius: 10px; padding: 10px 12px; font-family: var(--f-body); }
 .mapboxgl-popup-tip { border-top-color: #17201b !important; border-bottom-color: #17201b !important; }
 .mapboxgl-popup-content button { margin-top: 8px; width: 100%; }
+.mpop img { width: 100%; height: 140px; object-fit: cover; border-radius: 8px; margin-bottom: 6px; display: block; }
+.mpop .n { font: 800 17px var(--f-display); }
+.mpop .s { font: italic 15px var(--f-latin); color: var(--dim); }
+.mpop .m { font: 11.5px var(--f-mono); color: var(--dim); margin-top: 4px; }
 .car { width: 26px; height: 26px; }
 .car svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); }
-@media (max-width: 720px) {
-  #ctrl { left: 16px; right: 16px; width: auto; top: auto; bottom: 16px; max-height: 46%; }
-  #now { left: 16px; right: 16px; width: auto; top: 16px; max-height: 30%; }
+
+/* Hidden-panels mode: a slim dock keeps the essentials reachable. */
+#dock { left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top)); padding: 6px; display: flex; gap: 6px; align-items: center; }
+#dock .pts { font: 500 13px var(--f-mono); color: var(--gold); padding: 0 8px; white-space: nowrap; }
+body.clean #ctrl, body.clean #now { display: none; }
+body:not(.clean) #dock { display: none; }
+
+/* US regulatory sign, black on white, the way the road posts it. */
+#limit { position: fixed; z-index: 4; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center; pointer-events: none; }
+#limit .sign { background: #fff; color: #111; border: 3px solid #111; outline: 2px solid #fff; border-radius: 6px;
+  padding: 3px 9px 2px; text-align: center; font: 700 10px/1.05 var(--f-body); letter-spacing: .5px; box-shadow: 0 2px 10px rgba(0,0,0,.4); }
+#limit .sign b { display: block; font: 800 26px/1 var(--f-display); letter-spacing: 0; }
+#limit .you { font: 500 13px var(--f-mono); background: var(--panel); border: 1px solid var(--line); padding: 5px 9px; border-radius: 8px; }
+#limit.over .you { background: var(--bad); color: #2a0600; border-color: transparent; animation: wiggle .5s infinite; }
+@media (max-height: 620px) {
+  #card { max-height: calc(100% - 32px); overflow: auto; }
+  #card .ph { aspect-ratio: 3 / 1; }
+  #card .fact { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 }
+@media (max-width: 720px) {
+  #ctrl { left: 16px; right: 16px; width: auto; top: auto; bottom: 16px; max-height: 48%; }
+  #now { left: 16px; right: 16px; width: auto; max-height: 22%; }
+  #card { top: max(16px, env(safe-area-inset-top)); bottom: auto; }
+  #card .ph { aspect-ratio: 21 / 9; }
+  #card .fact { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
@@ -75,41 +173,75 @@ button:disabled { opacity: .45; cursor: default; }
 <div id="setup" class="panel" hidden>
   <h1>Birdsong Drive</h1>
   <p>Two free keys are needed. They are saved only in this browser.</p>
-  <label>Mapbox public token (pk.…) — <a href="https://account.mapbox.com/access-tokens/" target="_blank">get one</a></label>
+  <label>Mapbox public token (pk.…) · <a href="https://account.mapbox.com/access-tokens/" target="_blank">get one</a></label>
   <input id="tokMapbox" type="password" autocomplete="off">
-  <label>eBird API key — <a href="https://ebird.org/api/keygen" target="_blank">get one</a></label>
+  <label>eBird API key · <a href="https://ebird.org/api/keygen" target="_blank">get one</a></label>
   <input id="tokEbird" type="password" autocomplete="off">
   <div class="row"><button class="primary" id="saveKeys">Save and open map</button></div>
 </div>
 
+<div id="dock" class="panel">
+  <button class="icon" id="showPanels" title="Show controls (H)">☰ Controls</button>
+  <button class="icon primary" id="dockGo">Start</button>
+  <span class="pts" id="dockPts">0 pts</span>
+</div>
+
 <div id="ctrl" class="panel">
-  <h1>Birdsong Drive</h1>
-  <div class="sub">Recent eBird sightings around the Bay. Drive past them and hear them sing.</div>
+  <div class="head"><h1>Birdsong Drive</h1><button class="icon" id="hidePanels" title="Hide panels (H)">Hide</button></div>
+  <div class="sub">Drive past recent eBird sightings around the Bay and hear each bird sing. Claim the ones you hear for today's points.</div>
+  <div class="score">
+    <div class="pts"><b id="ptsToday">0</b>today</div>
+    <div><b id="nClaimed">0</b>claimed</div>
+    <div><b id="streak">0</b>day streak</div>
+    <div><b id="nLife">0</b>life list</div>
+  </div>
   <label>Route</label>
   <select id="route"></select>
-  <label>Speed <span id="speedV"></span></label>
-  <input id="speed" type="range" min="20" max="1000" step="10" value="80">
-  <label>Hearing range <span id="rangeV"></span></label>
-  <input id="range" type="range" min="150" max="1200" step="50" value="450">
-  <label>Sightings from the last <span id="backV"></span></label>
-  <input id="back" type="range" min="1" max="30" step="1" value="7">
   <label>Camera</label>
   <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
-  <div class="check"><input type="checkbox" id="say" checked><span>Say each bird's name</span></div>
-  <label>Voice <span style="opacity:.7">(voices installed on this device)</span></label>
-  <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" style="flex:0 0 auto">▶</button></div>
+  <label>Speed <span id="speedV"></span></label>
+  <input id="speed" type="range" min="20" max="1000" step="10" value="80">
+  <div class="check"><input type="checkbox" id="quiz"><span>Quiz me: guess each bird by its song (+15)</span></div>
   <div class="row">
     <button class="primary" id="go" disabled>Start drive</button>
     <button id="gps">Live GPS</button>
   </div>
-  <div class="row"><button id="here">Load birds in view</button><button id="keys">Keys</button></div>
-  <div class="stats"><div><b id="nSight">0</b>sightings</div><div><b id="nSpecies">0</b>species</div><div><b id="nHeard">0</b>heard</div></div>
-  <div class="legend"><span><i style="background:#e9f2ec"></i>sighting</span><span><i style="background:var(--gold)"></i>notable</span><span><i style="background:var(--heard)"></i>heard</span></div>
+  <details>
+    <summary>More settings</summary>
+    <label>Hearing range <span id="rangeV"></span></label>
+    <input id="range" type="range" min="150" max="1200" step="50" value="450">
+    <label>Sightings from the last <span id="backV"></span></label>
+    <input id="back" type="range" min="1" max="30" step="1" value="7">
+    <div class="check"><input type="checkbox" id="say" checked><span>Say each bird's name</span></div>
+    <div class="check"><input type="checkbox" id="sfx" checked><span>Game sounds, and bird poo when you speed</span></div>
+    <label>Voice (installed on this device)</label>
+    <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" class="icon">▶</button></div>
+    <div class="row"><button id="here">Load birds in view</button><button id="keys">Keys</button></div>
+  </details>
+  <div class="legend"><span><i style="background:#e9f2ec"></i>sighting</span><span><i style="background:var(--gold)"></i>notable</span><span><i style="background:var(--song)"></i>heard</span></div>
   <div id="status"></div>
-  <div class="sub" id="credits" style="margin:10px 0 0">Sightings: eBird, Cornell Lab of Ornithology. Songs and photos: iNaturalist contributors.</div>
+  <div class="credits" id="credits">Sightings: eBird, Cornell Lab of Ornithology. Songs, photos and facts: iNaturalist and Wikipedia.</div>
 </div>
 
-<div id="now" class="panel"><h2>Heard on this drive</h2><div id="heardList"><div class="m" style="color:var(--dim)">Nothing yet.</div></div></div>
+<div id="now" class="panel"><h2>Heard on this drive · <span id="nHeard">0</span></h2><div id="heardList"><div class="credits">Start a drive. Birds near the road will sing as you pass.</div></div></div>
+
+<div id="windshield" aria-hidden="true"></div>
+<div id="limit" hidden><div class="sign">SPEED<br>LIMIT<b id="limitV">25</b></div><div class="you" id="youV"></div></div>
+
+<div id="card" class="panel" hidden>
+  <div class="ph"><img id="cImg" alt=""><button class="icon close" id="cClose" aria-label="Close">✕</button><div class="eq"><i></i><i></i><i></i><i></i></div></div>
+  <div class="body">
+    <div class="eyebrow" id="cEyebrow">Singing now</div>
+    <div class="name" id="cName"></div>
+    <div class="latin" id="cLatin"></div>
+    <div class="quiz" id="cQuiz" hidden></div>
+    <div class="chips" id="cChips"></div>
+    <div class="fact" id="cFact"></div>
+    <div class="where" id="cWhere"></div>
+    <button id="claim">That's my bird!</button>
+    <div class="credit" id="cCredit"></div>
+  </div>
+</div>
 
 <script src="config.js"></script>
 <script>
@@ -125,10 +257,11 @@ const HEARD_COOLDOWN_MS = 90_000, MAX_VOICES = 3, SAMPLE_KM = 3;
 const $ = id => document.getElementById(id);
 const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
                 set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const jget = (k, d) => { try { return JSON.parse(store.get(k)) ?? d; } catch { return d; } };
 
 let map, carMarker, route = null, sightings = new Map(), notable = new Set();
 let drive = null, heardKeys = new Set(), lastSpecies = new Map(), voices = [], heardCount = 0;
-const soundCache = new Map();
+const soundCache = new Map(), taxonCache = new Map();
 
 // ---------- setup ----------
 const memKeys = {};  // fallback when storage is blocked (file previews, private windows)
@@ -139,7 +272,7 @@ function showSetup() {
 }
 $('saveKeys').onclick = () => {
   memKeys.mb = $('tokMapbox').value.trim(); memKeys.eb = $('tokEbird').value.trim();
-  if (!memKeys.mb || !memKeys.eb) { alert('Both keys are needed.'); return; }
+  if (!memKeys.mb || !memKeys.eb) { status('Both keys are needed.'); return; }
   store.set('bs.mapbox', memKeys.mb); store.set('bs.ebird', memKeys.eb);
   $('setup').hidden = true;
   if (map) { stopDrive(); map.remove(); map = null; }
@@ -151,6 +284,14 @@ function status(t) { $('status').textContent = t; }
 ROUTES.forEach((r, i) => $('route').add(new Option(r.name, i)));
 const fmt = { speed: v => `${v} km/h`, range: v => `${v} m`, back: v => `${v} day${v > 1 ? 's' : ''}` };
 for (const k of ['speed', 'range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
+
+// Hide/show panels so street view gets the whole screen.
+function setClean(on) { document.body.classList.toggle('clean', on); store.set('bs.clean', on ? '1' : ''); }
+$('hidePanels').onclick = () => setClean(true);
+$('showPanels').onclick = () => setClean(false);
+$('dockGo').onclick = () => $('go').click();
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'h' && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) setClean(!document.body.classList.contains('clean')); });
+setClean(store.get('bs.clean') === '1');
 
 // ---------- geo helpers ----------
 const R = 6371000, rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
@@ -167,6 +308,11 @@ function prepLine(coords) {
   const cum = [0];
   for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + dist(coords[i - 1], coords[i]));
   return { coords, cum, length: cum[cum.length - 1] };
+}
+function segAt(line, s) {
+  let lo = 0, hi = line.cum.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; line.cum[m] <= s ? lo = m : hi = m; }
+  return lo;
 }
 function along(line, s) {
   const { coords, cum } = line;
@@ -195,7 +341,7 @@ async function loadShared(points, radiusKm) {
       const [speciesCode, comName, sciName] = d.species[sp], [locId, locName, lat, lng] = d.locs[lc];
       return { speciesCode, comName, sciName, locId, locName, lat, lng, obsDt, howMany, subId, rare, t: Date.parse(obsDt.replace(' ', 'T')) };
     });
-    $('credits').textContent += ` Updated ${new Date(d.updated).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`;
+    $('credits').textContent += ` Sightings updated ${new Date(d.updated).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`;
   }
   const since = Date.now() - $('back').value * 86400e3, r = radiusKm * 1000;
   for (const o of sharedData) {
@@ -225,17 +371,19 @@ function addObs(o) {
   const key = o.speciesCode + '|' + o.locId;
   if (!sightings.has(key)) sightings.set(key, { key, ...o, lngLat: [o.lng, o.lat] });
 }
+// How many places a species turned up recently: the whole Bay when hosted, else what's loaded.
+function spotsFor(code) {
+  const src = sharedData || [...sightings.values()];
+  const since = Date.now() - $('back').value * 86400e3;
+  return new Set(src.filter(o => o.speciesCode === code && (!o.t || o.t >= since)).map(o => o.locId)).size || 1;
+}
 function birdsGeoJSON() {
   return { type: 'FeatureCollection', features: [...sightings.values()].map(s => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: s.lngLat },
     properties: { key: s.key, name: s.comName, notable: notable.has(s.key), heard: heardKeys.has(s.key) },
   })) };
 }
-function refreshBirds() {
-  map.getSource('birds')?.setData(birdsGeoJSON());
-  $('nSight').textContent = sightings.size;
-  $('nSpecies').textContent = new Set([...sightings.values()].map(s => s.speciesCode)).size;
-}
+function refreshBirds() { map?.getSource('birds')?.setData(birdsGeoJSON()); }
 const hasAudio = sci => !/( sp\.|\/| x |\(|Domestic)/.test(sci);
 async function findSound(sci) {
   if (soundCache.has(sci)) return soundCache.get(sci);
@@ -250,24 +398,253 @@ async function findSound(sci) {
   soundCache.set(sci, p);
   return p;
 }
-
-const photoCache = new Map();
-function findPhoto(sci) {
-  if (!photoCache.has(sci)) photoCache.set(sci, (async () => {
+// Photo, family and a two-sentence fact from iNaturalist (its Wikipedia summary).
+function findTaxon(sci) {
+  if (!taxonCache.has(sci)) taxonCache.set(sci, (async () => {
     const name = sci.replace(/ \(.*\)$/, '');
     const d = await fetch(`https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(name)}&per_page=5`).then(r => r.json()).catch(() => null);
     const t = (d?.results || []).find(t => t.name === name) || d?.results?.[0];
-    const p = t?.default_photo;
-    return p ? { thumb: p.square_url, url: p.medium_url, by: p.attribution } : null;
+    if (!t) return null;
+    const p = t.default_photo;
+    const out = { photo: p ? { thumb: p.square_url, url: p.medium_url, by: p.attribution } : null, family: null, fact: '' };
+    const full = await fetch(`https://api.inaturalist.org/v1/taxa/${t.id}`).then(r => r.json()).catch(() => null);
+    const ft = full?.results?.[0];
+    if (ft) {
+      const fam = ft.ancestors?.find(a => a.rank === 'family');
+      out.family = fam ? (fam.preferred_common_name || fam.name) : null;
+      const text = new DOMParser().parseFromString(ft.wikipedia_summary || '', 'text/html').body.textContent.trim();
+      const sentences = text.match(/[^.!?]+[.!?]+(\s|$)/g) || [];
+      out.fact = sentences.slice(0, 2).join('').trim().slice(0, 300);
+    }
+    return out;
   })());
-  return photoCache.get(sci);
+  return taxonCache.get(sci);
 }
-function setPhoto(img, cr, sci, big) {
-  findPhoto(sci).then(p => {
-    if (!p) { img.remove(); return; }
-    img.src = big ? p.url : p.thumb; img.alt = ''; img.dataset.full = p.url;
-    if (cr) cr.textContent = 'Photo ' + p.by;
-  });
+
+// ---------- points, life list, streak ----------
+const today = () => new Date().toLocaleDateString('en-CA');   // YYYY-MM-DD in local time
+let game = jget('bs.game', { day: '', pts: 0, claimed: [], streak: 0, lastDay: '', life: [] });
+function rollDay() {
+  const d = today();
+  if (game.day === d) return;
+  const yesterday = new Date(Date.now() - 864e5).toLocaleDateString('en-CA');
+  if (game.lastDay !== yesterday && game.lastDay !== d) game.streak = 0;
+  Object.assign(game, { day: d, pts: 0, claimed: [] });
+}
+function saveGame() { store.set('bs.game', JSON.stringify(game)); renderScore(); }
+function renderScore() {
+  rollDay();
+  $('ptsToday').textContent = game.pts; $('nClaimed').textContent = game.claimed.length;
+  $('streak').textContent = game.streak; $('nLife').textContent = game.life.length;
+  $('dockPts').textContent = `${game.pts} pts`;
+}
+// Rarer around the Bay scores more: 1 spot = 50, 10 spots = 14, 100 spots = 10.
+function pointsFor(s, quizRight) {
+  const spots = spotsFor(s.speciesCode), parts = [['seen', 10 + Math.round(40 / spots)]];
+  if (notable.has(s.key)) parts.push(['notable', 25]);
+  if (!game.life.includes(s.speciesCode)) parts.push(['new for life list', 20]);
+  if (quizRight) parts.push(['quiz', 15]);
+  return { total: parts.reduce((a, [, p]) => a + p, 0), parts };
+}
+function claim(s, quizRight) {
+  rollDay();
+  if (game.claimed.includes(s.speciesCode)) return null;
+  const pts = pointsFor(s, quizRight);
+  game.pts += pts.total; game.claimed.push(s.speciesCode);
+  if (!game.life.includes(s.speciesCode)) game.life.push(s.speciesCode);
+  if (game.lastDay !== game.day) { game.streak += 1; game.lastDay = game.day; }
+  saveGame();
+  return pts;
+}
+function popPoints(n, el) {
+  const r = el.getBoundingClientRect(), p = document.createElement('div');
+  p.className = 'pop'; p.textContent = `+${n}`;
+  p.style.left = r.left + r.width / 2 - 30 + 'px'; p.style.top = r.top - 10 + 'px';
+  document.body.append(p); setTimeout(() => p.remove(), 1400);
+}
+renderScore();
+
+// ---------- game feel: synthesized sounds, map ping, windscreen ----------
+let ac = null;
+function audio() {
+  if (!$('sfx').checked) return null;
+  try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch { return null; }
+  return ac;
+}
+addEventListener('pointerdown', () => audio(), { once: true });   // unlock audio on the first tap
+function tone(type, f0, f1, t0, dur, vol = .15) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + t0;
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02);
+}
+function noise(t0, dur, filterType, f0, f1, vol = .3, q = 1) {
+  const a = audio(); if (!a) return;
+  const len = Math.ceil(a.sampleRate * dur), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime + t0;
+  src.buffer = buf; f.type = filterType; f.Q.value = q;
+  f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+  src.connect(f).connect(g).connect(a.destination); src.start(t);
+}
+const sfx = {
+  found() { tone('sine', 2300, 3400, 0, .09, .08); tone('sine', 2600, 3900, .11, .09, .08); },
+  coin() { [1047, 1319, 1568, 2093].forEach((f, i) => tone('triangle', f, f, i * .07, .22, .12)); },
+  splat(t0 = 0) { noise(t0, .18, 'lowpass', 1400, 200, .5); tone('sine', 180, 60, t0, .12, .25); },
+  wipe(t0 = 0, dur = .5) { noise(t0, dur, 'bandpass', 900, 1600, .12, 6); tone('sawtooth', 640, 720, t0 + .05, dur * .8, .015); },
+  wrong() { tone('square', 300, 180, 0, .25, .05); },
+};
+function pingMap(s) {
+  if (!map) return;
+  const el = document.createElement('div'); el.className = 'ping' + (notable.has(s.key) ? ' gold' : '');
+  const m = new mapboxgl.Marker({ element: el }).setLngLat(s.lngLat).addTo(map);
+  setTimeout(() => m.remove(), 1500);
+}
+// A blob with a couple of drips, drawn fresh each time so no two splats match.
+function splatSVG() {
+  const pts = [...Array(14)].map((_, i) => { const a = i / 14 * Math.PI * 2, r = 30 + Math.random() * 16;
+    return [65 + Math.cos(a) * r, 55 + Math.sin(a) * r * .85]; });
+  const path = 'M' + pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' L');
+  const drips = [...Array(2 + Math.floor(Math.random() * 2))].map(() => { const x = 45 + Math.random() * 40;
+    return `<rect class="drip" x="${x.toFixed(0)}" y="70" width="${(5 + Math.random() * 5).toFixed(0)}" height="${(30 + Math.random() * 45).toFixed(0)}" rx="5" fill="#f4f1e6"/>`; }).join('');
+  const dots = [...Array(5)].map(() => `<circle cx="${(10 + Math.random() * 110).toFixed(0)}" cy="${(5 + Math.random() * 100).toFixed(0)}" r="${(2 + Math.random() * 5).toFixed(1)}" fill="#f4f1e6"/>`).join('');
+  return `<svg viewBox="0 0 130 150" width="130" height="150"><path d="${path} Z" fill="#f4f1e6" stroke="#d9d3bf" stroke-width="2" stroke-linejoin="round"/>
+    ${drips}${dots}<ellipse cx="58" cy="50" rx="11" ry="8" fill="#8a8170" opacity=".55"/><ellipse cx="52" cy="44" rx="9" ry="5" fill="#fff" opacity=".7"/></svg>`;
+}
+function birdPoo() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const ws = $('windshield'), W = innerWidth, H = innerHeight, splats = [];
+  const n = 1 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div'); el.className = 'splat';
+    const x = W * (.15 + Math.random() * .7) - 65, y = H * (.08 + Math.random() * .45);
+    el.style.left = x + 'px'; el.style.top = y + 'px'; el.style.setProperty('--r', (Math.random() * 40 - 20) + 'deg');
+    el.style.animationDelay = (i * .22) + 's';
+    el.innerHTML = splatSVG(); ws.append(el); splats.push({ el, x: x + 65, y });
+    sfx.splat(i * .22);
+  }
+  // Wiper pivots at bottom-centre: sweep right to left, then back.
+  setTimeout(() => {
+    const w = document.createElement('div'); w.className = 'wiper'; ws.append(w);
+    const D = 520, cx = W / 2, cy = H + 14;
+    const angleOf = s => Math.atan2(s.x - cx, cy - s.y) * 180 / Math.PI;   // 0 = straight up
+    w.animate([{ transform: 'rotate(80deg)' }, { transform: 'rotate(-80deg)' }, { transform: 'rotate(80deg)' }],
+      { duration: D * 2, easing: 'ease-in-out' }).onfinish = () => w.remove();
+    sfx.wipe(0, D / 1000); sfx.wipe(D / 1000, D / 1000);
+    for (const s of splats) {
+      const a = angleOf(s), when = (80 - a) / 160 * D;   // first pass reaches it here
+      setTimeout(() => { s.el.style.setProperty('--dx', '-40px'); s.el.classList.add('gone'); }, when);
+      setTimeout(() => s.el.remove(), when + 500);
+    }
+  }, 450 + n * 220 + 500);
+}
+$('sfx').checked = store.get('bs.sfx') !== 'off';
+$('sfx').onchange = () => store.set('bs.sfx', $('sfx').checked ? 'on' : 'off');
+
+// Speeding: over the posted limit by 10% and the gulls take aim. Each hit costs 5 of today's points.
+let lastPoo = 0;
+function checkSpeed(kmh, limitKmh, unit) {
+  const box = $('limit');
+  if (!limitKmh) { box.hidden = true; return; }
+  const mph = true, show = v => Math.round(v / 1.609);   // Mapbox reports km/h, Bay Area roads are posted in mph
+  box.hidden = false; $('limitV').textContent = show(limitKmh);
+  $('youV').textContent = `You ${show(kmh)} ${mph ? 'mph' : 'km/h'}`;
+  const over = kmh > limitKmh * 1.1;
+  box.classList.toggle('over', over);
+  if (over && performance.now() - lastPoo > 4000) {
+    lastPoo = performance.now(); birdPoo();
+    rollDay(); const lost = Math.min(5, game.pts); game.pts -= lost; saveGame();
+    if (lost) status(`Splat! A gull caught you speeding. −${lost} points.`);
+  }
+}
+
+// ---------- field card ----------
+let cardBird = null;
+const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]);
+async function showCard(v) {
+  if (cardBird && cardBird.quizOpen) return;            // never yank an unanswered quiz
+  const s = v.s, card = $('card');
+  cardBird = { v, s, quizOpen: false, quizRight: false };
+  const me = cardBird;
+  card.hidden = false; card.classList.remove('quiet');
+  card.style.animation = 'none'; card.offsetHeight; card.style.animation = '';
+  $('cImg').removeAttribute('src');
+  $('cEyebrow').textContent = 'Singing now';
+  $('cFact').textContent = ''; $('cCredit').textContent = ''; $('cChips').innerHTML = '';
+  const spots = spotsFor(s.speciesCode), dM = Math.round(dist(drive?.pos || s.lngLat, s.lngLat));
+  $('cWhere').textContent = `×${s.howMany ?? 'X'} at ${s.locName} · ${s.obsDt.slice(5, 10)} · ${dM} m off the road · ${spots} spot${spots > 1 ? 's' : ''} around the Bay`;
+  const pool = shuffle([...new Map([...sightings.values()].filter(o => o.speciesCode !== s.speciesCode && hasAudio(o.sciName))
+    .map(o => [o.speciesCode, o])).values()]).slice(0, 2);
+  const quiz = $('quiz').checked && pool.length === 2 && !game.claimed.includes(s.speciesCode);
+  card.classList.toggle('mystery', quiz);
+  $('cQuiz').hidden = !quiz; $('cQuiz').innerHTML = '';
+  if (quiz) {
+    me.quizOpen = true;
+    $('cName').textContent = 'Who is singing?'; $('cLatin').textContent = 'Listen, then pick one.';
+    for (const o of shuffle([s, ...pool])) {
+      const b = document.createElement('button'); b.textContent = o.comName;
+      b.onclick = () => reveal(me, o.speciesCode === s.speciesCode, b);
+      $('cQuiz').append(b);
+    }
+    me.timer = setTimeout(() => me.quizOpen && reveal(me, false, null), 20000);
+  } else fillCard(me);
+  setClaim(me);
+  const t = await findTaxon(s.sciName);
+  if (cardBird !== me) return;
+  if (t?.photo) { $('cImg').src = t.photo.url; $('cCredit').textContent = `Photo ${t.photo.by}` + (v.snd ? ` · Song ${v.snd.by || ''} · via iNaturalist` : ''); }
+  me.taxon = t;
+  if (!me.quizOpen) fillFacts(me);
+}
+function fillCard(me) {
+  $('cName').textContent = me.s.comName; $('cLatin').textContent = me.s.sciName;
+  fillFacts(me);
+}
+function fillFacts(me) {
+  const t = me.taxon, s = me.s, chips = $('cChips');
+  chips.innerHTML = '';
+  const chip = (txt, cls = '') => { const c = document.createElement('span'); c.className = 'chip ' + cls; c.textContent = txt; chips.append(c); };
+  if (t?.family) chip(t.family);
+  chip('eBird ' + s.speciesCode);
+  if (notable.has(s.key)) chip('★ notable here', 'gold');
+  if (!game.life.includes(s.speciesCode)) chip('new for your life list', 'song');
+  $('cFact').textContent = t?.fact || '';
+}
+function reveal(me, right, btn) {
+  if (!me.quizOpen) return;
+  me.quizOpen = false; me.quizRight = right; clearTimeout(me.timer);
+  [...$('cQuiz').children].forEach(b => { b.disabled = true; if (b.textContent === me.s.comName) b.classList.add('right'); });
+  if (btn && !right) { btn.classList.add('wrong'); sfx.wrong(); }
+  if (right) sfx.coin();
+  $('card').classList.remove('mystery');
+  $('cEyebrow').textContent = right ? 'Correct! +15 if you claim it' : 'It was…';
+  fillCard(me); say(me.s.comName, true);
+  me.v.el && fillEntry(me.v.el, me.s);
+  setClaim(me);
+}
+function setClaim(me) {
+  const b = $('claim');
+  rollDay();
+  if (game.claimed.includes(me.s.speciesCode)) { b.disabled = true; b.textContent = 'Already claimed today'; }
+  else if (me.quizOpen) { b.disabled = true; b.textContent = 'Guess first, then claim'; }
+  else { b.disabled = false; b.textContent = `That's my bird!  +${pointsFor(me.s, me.quizRight).total}`; }
+}
+$('claim').onclick = () => {
+  const me = cardBird; if (!me) return;
+  const r = claim(me.s, me.quizRight); if (!r) return;
+  popPoints(r.total, $('claim')); sfx.coin();
+  $('card').classList.remove('claimed'); $('card').offsetHeight; $('card').classList.add('claimed');
+  $('claim').disabled = true; $('claim').textContent = r.parts.map(([k, p]) => `${k} +${p}`).join(' · ');
+  me.v.el?.querySelector('.tag') && (me.v.el.querySelector('.tag').textContent = `+${r.total}`);
+  fillFacts(me);
+};
+$('cClose').onclick = () => { if (cardBird?.quizOpen) reveal(cardBird, false, null); $('card').hidden = true; cardBird = null; };
+function cardVoiceEnded(v) {
+  if (cardBird?.v !== v) return;
+  $('card').classList.add('quiet');
+  const me = cardBird;
+  setTimeout(() => { if (cardBird === me && !me.quizOpen) { $('card').hidden = true; cardBird = null; } }, 6000);
 }
 
 // ---------- audio ----------
@@ -299,13 +676,18 @@ function fillVoices() {
 if (window.speechSynthesis) { fillVoices(); speechSynthesis.onvoiceschanged = fillVoices; }
 $('voice').onchange = () => { store.set('bs.voice', $('voice').value); speechSynthesis.cancel(); say("Anna's Hummingbird", true); };
 $('voiceTest').onclick = () => { speechSynthesis.cancel(); say('Red-tailed Hawk', true); };
+$('quiz').checked = store.get('bs.quiz') === '1';
+$('quiz').onchange = () => store.set('bs.quiz', $('quiz').checked ? '1' : '');
+
 async function sing(s, pos) {
   if (voices.length >= MAX_VOICES || voices.some(v => v.s.speciesCode === s.speciesCode)) return false;
   const v = { s, audio: null, snd: null, start: performance.now() };
   heardKeys.add(s.key); lastSpecies.set(s.speciesCode, Date.now()); heardCount++;
-  voices.push(v); say(s.comName);
+  voices.push(v);
+  const quizzing = $('quiz').checked;
+  if (!quizzing) say(s.comName);
   const snd = v.snd = await findSound(s.sciName);
-  addHeard(v, pos);
+  addHeard(v);
   if (!voices.includes(v)) return true;
   v.start = performance.now();
   if (snd) {
@@ -313,12 +695,14 @@ async function sing(s, pos) {
     a.play().catch(() => {});
     a.onended = () => endVoice(v);
   } else setTimeout(() => endVoice(v), 4000);
+  sfx.found(); pingMap(s); showCard(v);
   refreshBirds();
   return true;
 }
 function endVoice(v) {
   v.audio?.pause(); voices = voices.filter(x => x !== v);
   v.el?.classList.remove('live');
+  cardVoiceEnded(v);
 }
 function updateVoices(pos, rangeM) {
   for (const v of voices) {
@@ -331,22 +715,25 @@ function updateVoices(pos, rangeM) {
     if (age > 25 || d > rangeM * 1.6) endVoice(v);
   }
 }
-function addHeard(v, pos) {
+function fillEntry(el, s) {
+  el.querySelector('.n').textContent = s.comName + (notable.has(s.key) ? ' ★' : '');
+  el.querySelector('.s').textContent = s.sciName;
+  findTaxon(s.sciName).then(t => { if (t?.photo) el.querySelector('img').src = t.photo.thumb; });
+}
+function addHeard(v) {
   const list = $('heardList');
   if (heardCount === 1) list.innerHTML = '';
   const el = document.createElement('div'); el.className = voices.includes(v) ? 'bird live' : 'bird';
-  const s = v.s, dM = Math.round(dist(pos, s.lngLat));
-  el.innerHTML = `<img class="ph"><div class="n"></div><div class="s"></div><div class="m"></div><div class="cr"></div>`;
-  setPhoto(el.querySelector('.ph'), el.querySelector('.cr'), s.sciName, true);
-  el.querySelector('.n').textContent = s.comName + (notable.has(s.key) ? ' ★' : '');
-  el.querySelector('.s').textContent = s.sciName;
-  el.querySelector('.m').textContent = `${s.howMany ?? 'X'} seen at ${s.locName} · ${s.obsDt} · ${dM} m away` +
-    (v.snd ? ` · recording ${v.snd.by || ''}, via iNaturalist` : ' · no recording found');
+  el.innerHTML = `<img alt=""><div><div class="n"></div><div class="s"></div></div><div class="tag"></div>`;
+  if ($('quiz').checked) { el.querySelector('.n').textContent = 'Mystery bird'; el.querySelector('.s').textContent = 'guess on the card'; }
+  else fillEntry(el, v.s);
+  if (game.claimed.includes(v.s.speciesCode)) el.querySelector('.tag').textContent = '✓';
   list.prepend(el); v.el = el;
   $('nHeard').textContent = heardCount;
 }
 function listen(pos) {
   const rangeM = +$('range').value;
+  if (drive) drive.pos = pos;
   updateVoices(pos, rangeM);
   if (voices.length >= MAX_VOICES) return;
   const near = [];
@@ -365,10 +752,13 @@ async function loadRoute(i) {
   stopDrive();
   const r = ROUTES[i];
   status('Routing with Mapbox Directions…');
-  const u = `https://api.mapbox.com/directions/v5/mapbox/driving/${r.pts.map(p => p.join(',')).join(';')}?geometries=geojson&overview=full&access_token=${keys().mb}`;
+  const u = `https://api.mapbox.com/directions/v5/mapbox/driving/${r.pts.map(p => p.join(',')).join(';')}?geometries=geojson&overview=full&annotations=maxspeed&access_token=${keys().mb}`;
   const d = await fetch(u).then(x => x.json());
   if (!d.routes?.length) { status('No route: ' + (d.message || 'unknown error')); return; }
   route = prepLine(d.routes[0].geometry.coordinates);
+  // maxspeed has one entry per segment, per leg; legs share their joining coordinate.
+  route.limits = d.routes[0].legs.flatMap(l => l.annotation?.maxspeed || [])
+    .map(m => m.speed ? { kmh: m.unit === 'mph' ? m.speed * 1.609 : m.speed, unit: m.unit } : null);
   map.getSource('route').setData({ type: 'Feature', geometry: d.routes[0].geometry });
   const b = new mapboxgl.LngLatBounds(); route.coords.forEach(c => b.extend(c));
   map.fitBounds(b, { padding: 80, pitch: 0, bearing: 0, duration: 1200 });
@@ -379,30 +769,38 @@ async function loadRoute(i) {
   samples.push(route.coords[route.coords.length - 1]);
   try { await loadSightingsAround(samples, SAMPLE_KM); }
   catch (e) { status(e.message); return; }
-  status(`${(route.length / 1000).toFixed(1)} km route · ${sightings.size} sightings nearby. Press Start.`);
+  const nSp = new Set([...sightings.values()].map(s => s.speciesCode)).size;
+  status(`${(route.length / 1000).toFixed(1)} km · ${sightings.size} sightings · ${nSp} species. Press Start.`);
   $('go').disabled = false;
 }
 function resetHeard() {
   heardKeys.clear(); lastSpecies.clear(); heardCount = 0; voices.forEach(endVoice);
   $('heardList').innerHTML = ''; $('nHeard').textContent = 0; refreshBirds();
 }
+function driveLabel(on) { $('go').textContent = on ? 'Stop' : 'Start drive'; $('dockGo').textContent = on ? 'Stop' : 'Start'; }
 function startDrive() {
   if (!route) return;
   resetHeard();
-  drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)) };
-  $('go').textContent = 'Stop'; drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
+  drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
+  driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
 }
 function stopDrive() {
   if (drive?.watch != null) navigator.geolocation.clearWatch(drive.watch);
-  drive = null; voices.forEach(endVoice); $('go').textContent = 'Start drive'; $('gps').textContent = 'Live GPS';
+  drive = null; voices.forEach(endVoice); driveLabel(false); $('limit').hidden = true; $('gps').textContent = 'Live GPS';
 }
 function tick(now) {
   if (!drive || drive.mode !== 'sim') return;
   const dt = Math.min(.25, (now - drive.t) / 1000); drive.t = now;
   drive.s += (+$('speed').value / 3.6) * dt;
-  if (drive.s >= route.length) { status('Arrived. ' + heardCount + ' birds heard.'); stopDrive(); return; }
+  if (drive.s >= route.length) {
+    const pts = game.pts - drive.startPts, lifers = game.life.length - drive.startLife;
+    status(`Arrived. Heard ${heardCount} birds, scored ${pts} points, ${lifers} new for your life list.`);
+    stopDrive(); return;
+  }
   const pos = along(route, drive.s), ahead = along(route, drive.s + 80);
+  const lim = route.limits?.[segAt(route, drive.s)];
+  checkSpeed(+$('speed').value, lim?.kmh, lim?.unit);
   const target = bearing(pos, ahead);
   let diff = ((target - drive.bear + 540) % 360) - 180;
   drive.bear = (drive.bear + diff * Math.min(1, dt * 2) + 360) % 360;
@@ -479,7 +877,7 @@ function initMap() {
     map.addLayer({ id: 'route', type: 'line', source: 'route', slot: 'middle',
       paint: { 'line-color': '#7fd6a5', 'line-width': 5, 'line-opacity': .85 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
     map.addSource('birds', { type: 'geojson', data: birdsGeoJSON() });
-    const color = ['case', ['get', 'heard'], '#5ec8ff', ['get', 'notable'], '#ffc857', '#e9f2ec'];
+    const color = ['case', ['get', 'heard'], '#5ec8ff', ['get', 'notable'], '#ffcb45', '#e9f2ec'];
     map.addLayer({ id: 'birds-glow', type: 'circle', source: 'birds', slot: 'top',
       paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 16], 'circle-color': color, 'circle-opacity': .18, 'circle-blur': .6 } });
     map.addLayer({ id: 'birds', type: 'circle', source: 'birds', slot: 'top',
@@ -502,14 +900,13 @@ function initMap() {
 let previewAudio = null;
 function openPopup(key, lngLat) {
   const s = sightings.get(key); if (!s) return;
-  const div = document.createElement('div'); div.className = 'pop';
-  div.innerHTML = `<img><div class="n" style="font-weight:650"></div><div class="s" style="font-style:italic;color:var(--dim);font-size:12px"></div>
-    <div style="font-size:12px;margin-top:4px" class="m"></div>
-    <div style="font-size:11px;margin-top:4px"><a target="_blank">eBird checklist</a></div><div class="cr"></div><button>▶ Play song</button>`;
-  setPhoto(div.querySelector('img'), div.querySelector('.cr'), s.sciName, true);
-  div.querySelector('.n').textContent = s.comName + (notable.has(key) ? ' ★ notable' : '');
+  const div = document.createElement('div'); div.className = 'mpop';
+  div.innerHTML = `<img alt=""><div class="n"></div><div class="s"></div><div class="m"></div>
+    <div class="m"><a target="_blank">eBird checklist</a></div><button>▶ Play song</button>`;
+  findTaxon(s.sciName).then(t => t?.photo ? div.querySelector('img').src = t.photo.url : div.querySelector('img').remove());
+  div.querySelector('.n').textContent = s.comName + (notable.has(key) ? ' ★' : '');
   div.querySelector('.s').textContent = s.sciName;
-  div.querySelector('.m').textContent = `${s.howMany ?? 'X'} at ${s.locName}, ${s.obsDt}`;
+  div.querySelector('.m').textContent = `×${s.howMany ?? 'X'} at ${s.locName} · ${s.obsDt}`;
   div.querySelector('a').href = `https://ebird.org/checklist/${s.subId}`;
   const btn = div.querySelector('button');
   btn.onclick = async () => {
