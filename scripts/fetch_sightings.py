@@ -21,7 +21,7 @@ def get(path, **params):
             if attempt == 3:
                 print("failed", path, params, e, file=sys.stderr)
                 return []
-            time.sleep(2 ** attempt)
+            time.sleep(5 * 2 ** attempt)   # eBird answers 429 when pushed
 
 def grid():
     lng0, lat0, lng1, lat1 = BBOX
@@ -37,7 +37,7 @@ def grid():
 
 def main(out):
     pts = list(grid())
-    with ThreadPoolExecutor(4) as ex:
+    with ThreadPoolExecutor(2) as ex:
         batches = list(ex.map(lambda p: get("data/obs/geo/recent", lat=p[1], lng=p[0], dist=RADIUS_KM, back=BACK_DAYS), pts))
         notable = list(ex.map(lambda p: get("data/obs/geo/recent/notable", lat=p[1], lng=p[0], dist=50, back=BACK_DAYS), NOTABLE_CENTERS))
     species, sp_idx, locs, loc_idx, obs, seen = [], {}, [], {}, [], set()
