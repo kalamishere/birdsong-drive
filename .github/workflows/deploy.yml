@@ -30,7 +30,12 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
-          python scripts/fetch_sightings.py _site/sightings.json
+          # Code pushes reuse the live sightings so deploys take seconds; the schedule refreshes them.
+          if [ "${{ github.event_name }}" = "push" ] && curl -fsS -o _site/sightings.json https://kalamishere.github.io/birdsong-drive/sightings.json; then
+            echo "reused live sightings.json"
+          else
+            python scripts/fetch_sightings.py _site/sightings.json
+          fi
           printf 'window.BIRDSONG_CONFIG = { mapboxToken: "%s", sightingsUrl: "sightings.json" };\n' "$MAPBOX_TOKEN" > _site/config.js
       - uses: actions/upload-pages-artifact@v3
         with:
