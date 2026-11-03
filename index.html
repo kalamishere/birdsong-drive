@@ -155,6 +155,17 @@ body:not(.clean) #showBar { display: none; }
 #card .quiz button.right { background: var(--moss); color: var(--on-accent); }
 #card .quiz button.wrong { background: var(--bad); color: var(--on-accent); }
 #claim { margin-top: 8px; width: 100%; padding: 9px; font: 800 15px var(--f-display); background: var(--gold); color: #261b00; border: 0; }
+#notBird { margin-top: 8px; width: 100%; padding: 9px; font: 800 15px var(--f-display); background: var(--moss); color: var(--on-accent); border: 0; }
+#notBird:disabled { background: var(--panel-2); color: var(--dim); font: 500 13px var(--f-body); }
+#card.roadster #notBird + #claim { background: var(--panel-2); color: var(--ink); font: 600 13px var(--f-body); }
+#card.roadster .ph { background: linear-gradient(#cfe3f5, #f3e6d6); }
+#card.roadster .ph img.bg { display: none; }
+/* The roadster hop: launches off the road, flips once on its thrusters, lands. */
+#roadster { position: fixed; z-index: 7; left: 0; top: 0; width: 230px; pointer-events: none; will-change: transform; }
+#roadster .plume { animation: plume .12s infinite alternate; transform-box: fill-box; transform-origin: top; }
+@keyframes plume { from { opacity: .55; transform: scaleY(.8); } to { opacity: .95; transform: scaleY(1.15); } }
+.sticker.nb { box-shadow: 0 0 0 2px var(--bad), 0 3px 10px rgba(0,0,0,.35); background: #cfe3f5; }
+.sticker.nb svg { width: 120%; margin-left: -10%; }
 #claim:disabled { background: var(--panel-2); color: var(--dim); opacity: 1; font: 500 13px var(--f-body); }
 .pop { position: fixed; z-index: 9; font: 800 30px var(--f-display); color: var(--gold); pointer-events: none;
   text-shadow: 0 2px 12px rgba(0,0,0,.6); animation: pop 1.3s ease-out forwards; }
@@ -281,6 +292,7 @@ body:not(.clean) #showBar { display: none; }
     <div class="chips" id="cChips"></div>
     <div class="fact" id="cFact"></div>
     <div class="where" id="cWhere"></div>
+    <button id="notBird" hidden>Not a bird!</button>
     <button id="claim">That's my bird!</button>
     <div class="credit" id="cCredit"></div>
   </div>
@@ -681,7 +693,7 @@ const shuffle = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).
 async function showCard(v) {
   if (cardBird && cardBird.quizOpen) return;            // never yank an unanswered quiz
   const s = v.s, card = $('card');
-  stopReplay();
+  stopReplay(); card.classList.remove('roadster'); $('notBird').hidden = true;
   cardBird = { v, s, quizOpen: false, quizRight: false };
   const me = cardBird;
   card.hidden = false; card.classList.remove('quiet', 'open');
@@ -747,6 +759,7 @@ function setClaim(me) {
 }
 $('claim').onclick = () => {
   const me = cardBird; if (!me) return;
+  if (me.roadster) { if (!me.done) rejectRoadster(me); return; }
   const r = claim(me.s, me.quizRight); if (!r) return;
   popPoints(r.total, $('claim')); sfx.coin();
   $('card').classList.remove('claimed'); $('card').offsetHeight; $('card').classList.add('claimed');
@@ -767,13 +780,102 @@ async function playReplay(s) {
   replay.onended = stopReplay;
 }
 $('cPlay').onclick = () => replay ? stopReplay() : cardBird && playReplay(cardBird.s);
-$('cClose').onclick = () => { stopReplay(); if (cardBird?.quizOpen) reveal(cardBird, false, null); $('card').hidden = true; cardBird = null; };
+$('cClose').onclick = () => { stopReplay(); if (cardBird?.quizOpen && !cardBird.roadster) reveal(cardBird, false, null); $('card').hidden = true; cardBird = null; };
 function cardVoiceEnded(v) {
   if (cardBird?.v !== v) return;
   $('card').classList.add('quiet');
   const me = cardBird;
   setTimeout(() => { if (cardBird === me && !me.quizOpen) { $('card').hidden = true; cardBird = null; } }, 6000);
 }
+
+// ---------- not a bird: the flying roadster ----------
+// A nod to the October 2026 flying Roadster demo: short thruster hops, a flip, a landing. It is not a bird.
+function roadsterSVG(plumes) {
+  return `<svg viewBox="0 0 230 110" xmlns="http://www.w3.org/2000/svg">
+    ${plumes ? [40, 78, 152, 190].map(x => `<path class="plume" d="M${x - 9} 74 Q${x} 112 ${x + 9} 74 Z" fill="#fff" opacity=".85"/>`).join('') : ''}
+    <path d="M14 70 Q12 56 30 52 L72 46 Q96 26 128 25 Q160 25 182 44 L210 50 Q224 54 222 68 L220 74 L16 76 Z" fill="#c8102e"/>
+    <path d="M80 46 Q100 31 128 30 Q152 30 170 44 Z" fill="#1d2630"/>
+    <path d="M86 45 Q102 34 124 33 L124 45 Z" fill="#5d7690" opacity=".8"/>
+    <path d="M20 60 L60 56" stroke="#ff6b6b" stroke-width="2" opacity=".6"/>
+    <rect x="208" y="56" width="12" height="5" rx="2" fill="#ffe7a8"/><rect x="14" y="58" width="9" height="5" rx="2" fill="#ff3b3b"/>
+    <circle cx="56" cy="76" r="15" fill="#15191d"/><circle cx="56" cy="76" r="7" fill="#7a838c"/>
+    <circle cx="176" cy="76" r="15" fill="#15191d"/><circle cx="176" cy="76" r="7" fill="#7a838c"/>
+  </svg>`;
+}
+const roadsterImg = 'data:image/svg+xml,' + encodeURIComponent(roadsterSVG(true));
+let roadsterSeen = false;
+function roadsterHop() {
+  const el = document.createElement('div'); el.id = 'roadster'; el.innerHTML = roadsterSVG(true);
+  document.body.append(el);
+  const W = innerWidth, H = innerHeight, ground = H * .5, peak = H * .14, fromLeft = Math.random() < .5;
+  const x0 = fromLeft ? -260 : W + 30, x1 = fromLeft ? W + 30 : -260, flip = fromLeft ? 360 : -360, mirror = fromLeft ? 1 : -1;
+  const at = (t, y, r) => ({ transform: `translate(${x0 + (x1 - x0) * t}px, ${y}px) scaleX(${mirror}) rotate(${r}deg)` });
+  const anim = el.animate([at(0, ground, 0), at(.25, ground - 40, -8), at(.5, peak, flip / 2), at(.72, ground - 60, flip),
+    at(.82, ground, flip), at(1, ground + 6, flip)], { duration: 4200, easing: 'ease-in-out' });
+  anim.onfinish = () => el.remove();
+  // Thruster hiss in bursts plus a rising electric whine.
+  [0, .9, 1.6, 2.4].forEach(t => noise(t, .45, 'highpass', 2500, 900, .18));
+  tone('sawtooth', 180, 900, .1, 2.2, .03); tone('sine', 520, 1400, .2, 2, .05);
+}
+function summonRoadster() {
+  if (cardBird?.quizOpen) return;
+  roadsterSeen = true; roadsterHop();
+  setTimeout(showRoadsterCard, 1300);
+}
+function showRoadsterCard() {
+  stopReplay();
+  const card = $('card'), quiz = $('quiz').checked;
+  const me = cardBird = { roadster: true, quizOpen: quiz, s: { speciesCode: 'notabird', comName: 'Flying Roadster' } };
+  card.hidden = false; card.classList.remove('quiet', 'open', 'replaying', 'claimed'); card.classList.add('roadster');
+  card.style.animation = 'none'; card.offsetHeight; card.style.animation = '';
+  $('cImg').src = roadsterImg; $('cImgBg').removeAttribute('src');
+  $('cCredit').textContent = 'Drawing: Birdsong Drive. Any resemblance to a real car launch is intentional.';
+  sfx.found();
+  const sticker = document.createElement('button');
+  sticker.className = 'sticker nb q'; sticker.textContent = quiz ? '?' : ''; sticker.title = quiz ? 'Mystery bird' : 'Not a bird';
+  sticker.onclick = () => showRoadsterCard();
+  if (!quiz) sticker.innerHTML = roadsterSVG(false);
+  $('heardList').prepend(sticker); me.el = sticker;
+  if (quiz) {
+    card.classList.add('mystery');
+    $('cEyebrow').textContent = 'Singing now?'; $('cName').textContent = 'Who is that?'; $('cLatin').textContent = 'Listen, then pick one.';
+    const pool = shuffle([...new Map([...sightings.values()].filter(o => hasAudio(o.sciName)).map(o => [o.speciesCode, o])).values()]).slice(0, 2);
+    $('cQuiz').hidden = false; $('cQuiz').innerHTML = '';
+    for (const label of shuffle([...pool.map(o => o.comName), 'Not a bird'])) {
+      const b = document.createElement('button'); b.textContent = label;
+      b.onclick = () => { me.quizOpen = false; [...$('cQuiz').children].forEach(x => { x.disabled = true; if (x.textContent === 'Not a bird') x.classList.add('right'); });
+        if (label !== 'Not a bird') { b.classList.add('wrong'); sfx.wrong(); } else sfx.coin();
+        me.quizRight = label === 'Not a bird'; fillRoadster(me); };
+      $('cQuiz').append(b);
+    }
+  } else { $('cQuiz').hidden = true; fillRoadster(me); }
+}
+function fillRoadster(me) {
+  $('card').classList.remove('mystery');
+  $('cEyebrow').textContent = me.quizRight ? 'Good ears. Not a bird.' : 'Not a bird';
+  $('cName').textContent = 'Flying Roadster'; $('cLatin').textContent = 'Automobilis volans (prototypus)';
+  $('cChips').innerHTML = '<span class="chip">Family: Prototypes</span><span class="chip">0 spots around the Bay</span>';
+  $('cFact').textContent = 'Shown off in October 2026, when a Roadster hopped a few seconds at a time on thrusters, flipped and landed. Does not sing. Not found in eBird.';
+  $('cWhere').textContent = 'Seen briefly, somewhere above the road.';
+  if (me.el) { me.el.classList.remove('q'); me.el.innerHTML = roadsterSVG(false); me.el.title = 'Not a bird'; }
+  const nb = $('notBird'), cl = $('claim');
+  nb.hidden = false; nb.disabled = !!me.done; cl.disabled = !!me.done;
+  nb.textContent = me.done ? 'Logged' : `Not a bird!  +${me.quizRight ? 25 : 10}`;
+  cl.textContent = "That's my bird!";
+}
+$('notBird').onclick = () => {
+  const me = cardBird; if (!me?.roadster || me.done) return;
+  me.done = true; rollDay(); const pts = me.quizRight ? 25 : 10; game.pts += pts; saveGame();
+  popPoints(pts, $('notBird')); sfx.coin(); status(`Keen eye: not a bird. +${pts} points.`); fillRoadster(me);
+};
+function rejectRoadster(me) {
+  me.done = true; rollDay(); const lost = Math.min(10, game.pts); game.pts -= lost; saveGame();
+  sfx.wrong(); birdPoo();
+  status(`eBird reviewers rejected your Flying Roadster record.${lost ? ` −${lost} points.` : ''}`);
+  $('claim').textContent = 'Record rejected'; $('claim').disabled = $('notBird').disabled = true;
+}
+// Press R to summon one (handy for showing friends).
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'r' && !e.metaKey && !e.ctrlKey && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) summonRoadster(); });
 
 // ---------- audio ----------
 function say(text, force) {
@@ -944,6 +1046,10 @@ function tick(now) {
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
+  // Roughly a 1-in-6 chance each mile, at most once per drive, never in the first half mile.
+  if (!drive.roadster && drive.s > 800 && drive.s - (drive.lastRoll || 0) > 1609) {
+    drive.lastRoll = drive.s; if (Math.random() < .17) { drive.roadster = true; summonRoadster(); }
+  }
   const long = m => (m / (units === 'mi' ? 1609.344 : 1000)).toFixed(1);
   prog(`${long(drive.s)} / ${long(route.length)} ${units === 'mi' ? 'mi' : 'km'}`);
   requestAnimationFrame(tick);
