@@ -182,10 +182,29 @@ body:not(.clean) #showBar { display: none; }
 .mpop .n { font: 800 17px var(--f-display); }
 .mpop .s { font: italic 15px var(--f-latin); color: var(--dim); }
 .mpop .m { font: 11.5px var(--f-mono); color: var(--dim); margin-top: 4px; }
-.car { width: 26px; height: 26px; }
-.car svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); transition: transform .3s; }
-.car .shadow { position: absolute; left: 3px; top: 8px; width: 20px; height: 12px; border-radius: 50%; background: rgba(0,0,0,.35); filter: blur(3px); opacity: 0; }
+.car { width: 40px; height: 40px; }
+.car.v-gull { width: 46px; height: 46px; }
+.car svg { width: 100%; height: 100%; display: block; position: relative; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); transition: transform .3s; }
+.car.v-arrow svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); }
+.car .shadow { position: absolute; inset: 8px 6px; border-radius: 50%; background: rgba(0,0,0,.35); filter: blur(3px); opacity: 0; }
 .car.flying svg { filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 12px rgba(94,200,255,.9)); }
+.car.flying.v-gull svg { filter: drop-shadow(0 3px 2px rgba(0,0,0,.35)); }   /* a real bird casts a shadow, it doesn't glow */
+.car .wing { transform-box: fill-box; transition: transform .4s; }
+.car .wing.l { transform-origin: 100% 50%; } .car .wing.r { transform-origin: 0% 50%; }
+.car:not(.flying) .wing { transform: scaleX(.5) rotate(8deg); }
+.car.flying .wing { animation: flap .55s ease-in-out infinite; }
+@keyframes flap { 50% { transform: scaleX(.55) scaleY(1.05); } }
+.car .thrust { opacity: 0; }
+.car.flying .thrust { opacity: 1; animation: flick .1s infinite alternate; }
+@keyframes flick { to { opacity: .55; } }
+#vehicles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#vehicles button { flex-direction: column; padding: 6px 2px 5px; font: 500 11px var(--f-body); gap: 2px; }
+#vehicles button svg { width: 34px; height: 34px; }
+#vehicles button[aria-pressed="true"] { border-color: var(--moss); box-shadow: inset 0 0 0 1px var(--moss); }
+#vehicles .wing { transform: none; }
+#paint { display: flex; gap: 6px; margin-top: 8px; }
+#paint button { width: 22px; height: 22px; border-radius: 50%; padding: 0; border: 2px solid rgba(255,255,255,.25); }
+#paint button[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px var(--moss); }
 .car.flying .shadow { opacity: 1; }
 #limit.air .sign { background: #e8f3ff; border-color: #0b3a6b; color: #0b3a6b; }
 
@@ -275,6 +294,9 @@ body:not(.clean) #showBar { display: none; }
   <div class="seg" id="light"><button data-v="auto">Auto</button><button data-v="dawn">Dawn</button><button data-v="day">Day</button><button data-v="dusk">Dusk</button><button data-v="night">Night</button></div>
   <label>Weather <span id="wxNow"></span></label>
   <div class="seg" id="wx"><button data-v="live">Live</button><button data-v="clear">Clear</button><button data-v="fog">Fog</button><button data-v="rain">Rain</button><button data-v="snow">Snow</button></div>
+  <label>Vehicle</label>
+  <div id="vehicles"></div>
+  <div id="paint"></div>
   <label>Units</label>
   <div class="seg" id="units"><button data-u="mi">Miles · mph</button><button data-u="km">Kilometres · km/h</button></div>
   <label>Speed <span id="speedK"></span></label>
@@ -1266,6 +1288,57 @@ function startGps() {
   }, e => status('GPS error: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000 });
 }
 
+// ---------- your vehicle ----------
+// Top-down drawings, nose up. The gull flaps on flight legs; the cars fire hover pads or thrusters.
+const VEHICLES = {
+  arrow: () => `<svg viewBox="0 0 48 48"><path d="M24 4 L39 42 L24 33 L9 42 Z" fill="#7fd6a5" stroke="#0b1a12" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+  hatch: c => `<svg viewBox="0 0 48 48">
+    <rect x="13" y="5" width="22" height="38" rx="8" fill="${c}" stroke="rgba(0,0,0,.45)" stroke-width="1.5"/>
+    <path d="M15.5 15 Q24 11 32.5 15 L31 20 Q24 18.5 17 20 Z" fill="#1d2833"/>
+    <rect x="16.5" y="21" width="15" height="12" rx="3" fill="${c}" stroke="rgba(0,0,0,.25)"/>
+    <path d="M17 34.5 Q24 36.5 31 34.5 L32 38.5 Q24 40.5 16 38.5 Z" fill="#1d2833"/>
+    <rect x="10.5" y="17" width="3" height="5" rx="1.5" fill="${c}" stroke="rgba(0,0,0,.4)"/><rect x="34.5" y="17" width="3" height="5" rx="1.5" fill="${c}" stroke="rgba(0,0,0,.4)"/>
+    <rect x="15" y="6" width="5" height="2.6" rx="1.3" fill="#fffbe0"/><rect x="28" y="6" width="5" height="2.6" rx="1.3" fill="#fffbe0"/>
+    <rect x="15" y="40" width="5" height="2.2" rx="1.1" fill="#ff3b3b"/><rect x="28" y="40" width="5" height="2.2" rx="1.1" fill="#ff3b3b"/>
+    <g class="thrust">${[[16, 12], [32, 12], [16, 36], [32, 36]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4.5" fill="#bfe8ff" opacity=".8"/>`).join('')}</g></svg>`,
+  roadster: () => `<svg viewBox="0 0 48 48"><defs><linearGradient id="rg" x1="0" x2="1"><stop offset="0" stop-color="#8f0a1c"/><stop offset=".5" stop-color="#ef2b45"/><stop offset="1" stop-color="#8f0a1c"/></linearGradient></defs>
+    <g class="thrust">${[[15, 12], [33, 12], [14, 36], [34, 36]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5" fill="#ffffff" opacity=".85"/>`).join('')}</g>
+    <path d="M24 3 Q33 4 35 14 L37 34 Q37 44 24 45 Q11 44 11 34 L13 14 Q15 4 24 3 Z" fill="url(#rg)" stroke="rgba(0,0,0,.4)" stroke-width="1.2"/>
+    <path d="M24 13 Q31 14 31.5 22 L31 32 Q24 35 17 32 L16.5 22 Q17 14 24 13 Z" fill="#162029"/>
+    <path d="M21 16 Q24 15 27 16 L26.5 24 L21.5 24 Z" fill="#7d93a8" opacity=".55"/>
+    <path d="M14 5.5 Q24 1.5 34 5.5" stroke="#eef6ff" stroke-width="1.6" fill="none"/><path d="M14 43 Q24 46 34 43" stroke="#ff2d3d" stroke-width="1.8" fill="none"/></svg>`,
+  gull: () => `<svg viewBox="0 0 48 48">
+    <g class="wing l"><path d="M21.5 19 Q15 13.5 9.5 15.5 Q4.5 17.5 1 25 Q5.5 23.2 10 23.2 Q15.5 23.4 21.5 26 Z" fill="#8f9ba5" stroke="#5f6a73" stroke-width=".8"/>
+      <path d="M6 19.2 Q3 21 1 25 Q4 23.6 7.6 23.3 Q6.5 21.5 6 19.2 Z" fill="#17191b"/><circle cx="3.6" cy="23.3" r=".9" fill="#fff"/>
+      <path d="M21.5 25.4 Q15.5 23.2 10 23.4" stroke="#fff" stroke-width="1" fill="none" opacity=".8"/></g>
+    <g class="wing r"><path d="M26.5 19 Q33 13.5 38.5 15.5 Q43.5 17.5 47 25 Q42.5 23.2 38 23.2 Q32.5 23.4 26.5 26 Z" fill="#8f9ba5" stroke="#5f6a73" stroke-width=".8"/>
+      <path d="M42 19.2 Q45 21 47 25 Q44 23.6 40.4 23.3 Q41.5 21.5 42 19.2 Z" fill="#17191b"/><circle cx="44.4" cy="23.3" r=".9" fill="#fff"/>
+      <path d="M26.5 25.4 Q32.5 23.2 38 23.4" stroke="#fff" stroke-width="1" fill="none" opacity=".8"/></g>
+    <path d="M21 32 L24 39 L27 32 Z" fill="#ffffff" stroke="#9aa3ab" stroke-width=".8"/>
+    <ellipse cx="24" cy="23" rx="4.6" ry="10" fill="#9ea9b2" stroke="#5f6a73" stroke-width=".8"/>
+    <circle cx="24" cy="12.8" r="3.6" fill="#ffffff" stroke="#9aa3ab" stroke-width=".8"/>
+    <path d="M23 9.8 L24 5.6 L25 9.8 Z" fill="#f2c230" stroke="#c99a12" stroke-width=".4"/><circle cx="24" cy="7.6" r=".75" fill="#d23b2a"/>
+    <circle cx="22.6" cy="12" r=".6" fill="#222"/><circle cx="25.4" cy="12" r=".6" fill="#222"/></svg>`,
+};
+const PAINTS = ['#2f7fd1', '#7fd6a5', '#ffcb45', '#f4f1e6', '#d4307a'];
+const VEH_NAMES = { gull: 'Gull', hatch: 'Hatchback', roadster: 'Roadster', arrow: 'Arrow' };
+let vehicle = store.get('bs.vehicle') || 'gull', paint = store.get('bs.paint') || PAINTS[0];
+function drawVehicle(el) {
+  [...el.classList].filter(c => c.startsWith('v-')).forEach(c => el.classList.remove(c));   // keep Mapbox's marker classes
+  el.classList.add('car', `v-${vehicle}`);
+  el.innerHTML = `<div class="shadow"></div>${VEHICLES[vehicle](paint)}`;
+}
+function renderVehiclePicker() {
+  $('vehicles').innerHTML = Object.keys(VEH_NAMES).map(k =>
+    `<button data-v="${k}" aria-pressed="${k === vehicle}">${VEHICLES[k](paint)}${VEH_NAMES[k]}</button>`).join('');
+  $('vehicles').querySelectorAll('button').forEach(b => b.onclick = () => { vehicle = b.dataset.v; store.set('bs.vehicle', vehicle); applyVehicle(); });
+  $('paint').hidden = vehicle !== 'hatch';
+  $('paint').innerHTML = PAINTS.map(c => `<button style="background:${c}" data-c="${c}" aria-label="Paint ${c}" aria-pressed="${c === paint}"></button>`).join('');
+  $('paint').querySelectorAll('button').forEach(b => b.onclick = () => { paint = b.dataset.c; store.set('bs.paint', paint); applyVehicle(); });
+}
+function applyVehicle() { renderVehiclePicker(); if (carMarker) drawVehicle(carMarker.getElement()); }
+renderVehiclePicker();
+
 // ---------- map look: light, sky and fog, weather, terrain, heatmap ----------
 const look = { light: store.get('bs.light') || 'auto', wx: store.get('bs.wx') || 'live',
                heat: store.get('bs.heat') !== 'off', terrain: store.get('bs.terrain') !== 'off' };
@@ -1321,8 +1394,8 @@ function initMap() {
     center: [-122.42, 37.77], zoom: 10.5, pitch: 0,
     maxBounds: [[BAY[0][0] - .35, BAY[0][1] - .3], [BAY[1][0] + .35, BAY[1][1] + .3]] });
   map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-  const el = document.createElement('div'); el.className = 'car';
-  el.innerHTML = `<div class="shadow"></div><svg viewBox="0 0 26 26" width="26" height="26"><path d="M13 2 L22 23 L13 18 L4 23 Z" fill="#7fd6a5" stroke="#0b1a12" stroke-width="1.5"/></svg>`;
+  const el = document.createElement('div');
+  drawVehicle(el);
   carMarker = new mapboxgl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' });
 
   map.on('load', () => {
