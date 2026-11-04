@@ -1375,7 +1375,7 @@ renderVehiclePicker();
 
 // ---------- map look: light, sky and fog, weather, terrain, heatmap ----------
 const look = { light: store.get('bs.light') || 'auto', wx: store.get('bs.wx') || 'live',
-               heat: store.get('bs.heat') !== 'off', terrain: store.get('bs.terrain') !== 'off' };
+               heat: store.get('bs.heat') === 'on', terrain: store.get('bs.terrain') !== 'off' };
 // "Auto" follows the clock in San Francisco, wherever you are playing from.
 const sfHour = () => +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Los_Angeles' }).format(new Date());
 const autoLight = () => { const h = sfHour(); return h >= 5 && h < 8 ? 'dawn' : h >= 8 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'dusk' : 'night'; };
