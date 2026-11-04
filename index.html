@@ -74,6 +74,9 @@ button.icon { padding: 8px 11px; font-weight: 500; }
 #bar .spd { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); }
 #bar .spd button { border: 0; background: none; padding: 6px 11px; border-radius: 999px; font-size: 15px; }
 #bar .spd span { font: 500 13px var(--f-mono); min-width: 54px; text-align: center; font-variant-numeric: tabular-nums; }
+#bar .spd #speedNow { font: 800 17px var(--f-display); min-width: 42px; padding-left: 12px; color: var(--ink); }
+#bar .spd #speedNow small { font: 500 10px var(--f-mono); color: var(--dim); margin-left: 2px; }
+#bar .spd.driving #speedV { font-size: 11px; color: var(--dim); min-width: 62px; }
 #prog { font: 12px var(--f-mono); color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 #prog:empty { display: none; }
 #side { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
@@ -263,7 +266,7 @@ body:not(.clean) #showBar { display: none; }
   <span class="brand">Birdsong Drive</span>
   <select id="route" aria-label="Route"></select>
   <div class="seg" id="cam"><button data-cam="street">Street</button><button data-cam="chase" aria-pressed="true">Chase</button><button data-cam="overview">Overview</button></div>
-  <div class="spd"><button id="slower" aria-label="Slower" title="Slower (↓)">−</button><span id="speedV"></span><button id="faster" aria-label="Faster" title="Faster (↑, Shift for more)">+</button></div>
+  <div class="spd"><span id="speedNow" hidden></span><button id="slower" aria-label="Slower" title="Slower (↓)">−</button><span id="speedV"></span><button id="faster" aria-label="Faster" title="Faster (↑, Shift for more)">+</button></div>
   <span id="prog"></span>
   <button class="primary" id="go" disabled>Start</button>
   <button class="icon" id="gear" aria-expanded="false" aria-label="Settings">⚙</button>
@@ -388,7 +391,7 @@ const fmtDist = m => units === 'mi'
 const speedStep = () => units === 'mi' ? 5 * MI : 5;   // one tap = 5 mph or 5 km/h
 const fmt = { range: v => fmtDist(+v), back: v => `${v} day${v > 1 ? 's' : ''}` };
 for (const k of ['range', 'back']) { const f = () => $(k + 'V').textContent = fmt[k]($(k).value); $(k).oninput = f; f(); }
-$('speed').oninput = () => { $('speedV').textContent = $('speedK').textContent = fmtSpeed(+$('speed').value); };
+$('speed').oninput = () => { $('speedK').textContent = fmtSpeed(+$('speed').value); $('speedV').textContent = (drive?.mode === 'sim' ? 'set ' : '') + fmtSpeed(+$('speed').value); };
 function setUnits(u) {
   units = u; store.set('bs.units', u);
   document.querySelectorAll('#units button').forEach(b => b.setAttribute('aria-pressed', b.dataset.u === u));
@@ -1173,7 +1176,7 @@ function startDrive() {
   if (!route && !tour) return;
   resetHeard();
   if (tour) {
-    drive = { mode: 'sim', tour: true, s: 0, t: performance.now(), bear: 0, startPts: game.pts, startLife: game.life.length,
+    drive = { mode: 'sim', tour: true, s: 0, v: 0, t: performance.now(), bear: 0, startPts: game.pts, startLife: game.life.length,
               pos: carMarker.getLngLat().toArray(), loading: true };
     driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
     nextLeg(); requestAnimationFrame(tick); return;
@@ -1181,7 +1184,7 @@ function startDrive() {
   // Start at the posted limit for the first stretch that has one.
   const first = route.limits?.find(Boolean);
   if (first && !speedChosen) { $('speed').value = first.kmh; $('speed').oninput(); }
-  drive = { mode: 'sim', s: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
+  drive = { mode: 'sim', s: 0, v: 0, t: performance.now(), bear: bearing(route.coords[0], along(route, 60)), startPts: game.pts, startLife: game.life.length };
   driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
   requestAnimationFrame(tick);
 }
@@ -1189,13 +1192,44 @@ function stopDrive() {
   if (drive?.watch != null) navigator.geolocation.clearWatch(drive.watch);
   drive = null; voices.forEach(endVoice); driveLabel(false); $('limit').hidden = true; $('gps').textContent = 'Live GPS';
   if (carMarker) setAltitude(0);
+  showSpeed();
+}
+// The set speed is where you're heading; the car gets there like a car does. About 0-60 mph in 9 s,
+// firmer braking, slower through sharp bends, and a smooth stop at the end of each leg.
+const ACCEL = { road: 3, air: 6 }, BRAKE = { road: 5, air: 6 };
+function cornerCap(s) {
+  if (route.fly) return Infinity;
+  const p0 = along(route, s), p1 = along(route, s + 30), p2 = along(route, s + 70);
+  const turn = Math.abs(((bearing(p1, p2) - bearing(p0, p1) + 540) % 360) - 180);
+  return turn > 70 ? 18 * MI / 3.6 : turn > 40 ? 28 * MI / 3.6 : Infinity;   // m/s
+}
+function advance(dt) {
+  const mode = route.fly ? 'air' : 'road';
+  let target = +$('speed').value / 3.6;
+  const left = route.length - drive.s;
+  target = Math.min(target, Math.sqrt(2 * BRAKE[mode] * Math.max(0, left - 2)) + .5, cornerCap(drive.s));
+  for (let t = 0; t < dt; t += .05) {                          // small steps keep it smooth on slow frames
+    const h = Math.min(.05, dt - t), v = drive.v || 0;
+    drive.v = v < target ? Math.min(target, v + ACCEL[mode] * h) : Math.max(target, v - BRAKE[mode] * h);
+    drive.s = Math.min(route.length, drive.s + drive.v * h);
+  }
+  showSpeed();
+}
+function showSpeed() {
+  const n = $('speedNow'), v = (drive?.v || 0) * 3.6;
+  n.hidden = !drive || drive.mode !== 'sim';
+  n.closest('.spd').classList.toggle('driving', !n.hidden);
+  const [num, unit] = fmtSpeed(v).split(' ');
+  n.innerHTML = `${num}<small>${unit}</small>`;
+  $('speed').oninput();
 }
 function tick(now) {
   if (!drive || drive.mode !== 'sim') return;
-  const dt = Math.min(.25, (now - drive.t) / 1000); drive.t = now;
-  if (drive.loading || !route) { requestAnimationFrame(tick); return; }
-  drive.s += (+$('speed').value / 3.6) * dt;
-  if (drive.tour && drive.s >= route.length) {
+  // Count real time (up to 1 s per frame) so a slow frame doesn't slow the car.
+  const dt = Math.min(1, (now - drive.t) / 1000); drive.t = now;
+  if (drive.loading || !route) { drive.v = 0; showSpeed(); requestAnimationFrame(tick); return; }
+  advance(dt);
+  if (drive.tour && drive.s >= route.length - 1.5 && drive.v < 1) {
     // Arrived: let the bird sing, pause a moment, then head for the next one.
     drive.s = route.length; drive.pos = route.coords[route.coords.length - 1]; setAltitude(0);
     if (!drive.landedAt) {
@@ -1207,7 +1241,7 @@ function tick(now) {
     if (now - drive.landedAt > 2500) { drive.loading = true; nextLeg(); }
     listen(drive.pos); requestAnimationFrame(tick); return;
   }
-  if (drive.s >= route.length) {
+  if (drive.s >= route.length - 1.5 && drive.v < 1) {
     const pts = game.pts - drive.startPts, lifers = game.life.length - drive.startLife;
     status(`Arrived. Heard ${heardCount} birds, scored ${pts} points, ${lifers} new for your life list.`);
     stopDrive(); return;
@@ -1215,11 +1249,11 @@ function tick(now) {
   const pos = along(route, drive.s), ahead = along(route, drive.s + 80);
   if (route.fly) {
     const fl = flightLimit(pos), climb = Math.min(1, drive.s / 700, (route.length - drive.s) / 700);
-    checkSpeed(+$('speed').value, fl.kmh, 'mph', fl.zone);
+    checkSpeed(drive.v * 3.6, fl.kmh, 'mph', fl.zone);
     setAltitude(CRUISE_ALT_M * Math.max(0, climb));
   } else {
     const lim = route.limits?.[segAt(route, drive.s)];
-    checkSpeed(+$('speed').value, lim?.kmh, lim?.unit);
+    checkSpeed(drive.v * 3.6, lim?.kmh, lim?.unit);
     setAltitude(0);
   }
   if (drive.tour) drive.pos = pos;
@@ -1228,7 +1262,7 @@ function tick(now) {
   drive.bear = (drive.bear + diff * Math.min(1, dt * 2) + 360) % 360;
   carMarker.setLngLat(pos).setRotation(drive.bear);
   // Pull the camera back as speed rises so the drive reads as fast; ease toward it each frame.
-  const kmh = +$('speed').value, k = Math.min(1, dt * 1.5);
+  const kmh = Math.max(20, drive.v * 3.6), k = Math.min(1, dt * 1.5);
   let [targetZoom, targetPitch] = camTarget(kmh);
   if (route.fly) { targetZoom = Math.min(targetZoom, camMode === 'street' ? 15.6 : 13.6); targetPitch = Math.min(targetPitch, 62); }   // see further from the air
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
