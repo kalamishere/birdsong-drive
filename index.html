@@ -183,7 +183,11 @@ body:not(.clean) #showBar { display: none; }
 .mpop .s { font: italic 15px var(--f-latin); color: var(--dim); }
 .mpop .m { font: 11.5px var(--f-mono); color: var(--dim); margin-top: 4px; }
 .car { width: 26px; height: 26px; }
-.car svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); }
+.car svg { filter: drop-shadow(0 0 6px rgba(127,214,165,.8)); transition: transform .3s; }
+.car .shadow { position: absolute; left: 3px; top: 8px; width: 20px; height: 12px; border-radius: 50%; background: rgba(0,0,0,.35); filter: blur(3px); opacity: 0; }
+.car.flying svg { filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 12px rgba(94,200,255,.9)); }
+.car.flying .shadow { opacity: 1; }
+#limit.air .sign { background: #e8f3ff; border-color: #0b3a6b; color: #0b3a6b; }
 
 
 /* US regulatory sign, black on white, the way the road posts it. */
@@ -288,7 +292,7 @@ body:not(.clean) #showBar { display: none; }
 <div id="toast" hidden></div>
 
 <div id="windshield" aria-hidden="true"></div>
-<div id="limit" hidden><div class="sign">SPEED<br>LIMIT<b id="limitV">25</b></div><div class="you" id="youV"></div></div>
+<div id="limit" hidden><div class="sign"><span id="limitCap">SPEED<br>LIMIT</span><b id="limitV">25</b></div><div class="you" id="youV"></div></div>
 
 <div id="card" class="panel" hidden>
   <div class="ph"><img id="cImgBg" class="bg" alt=""><img id="cImg" alt=""><button class="icon close" id="cClose" aria-label="Close">✕</button><div class="eq"><i></i><i></i><i></i><i></i></div><button class="icon play" id="cPlay" aria-label="Play song">▶ Play</button></div>
@@ -309,6 +313,7 @@ body:not(.clean) #showBar { display: none; }
 <script src="config.js"></script>
 <script>
 const ROUTES = [
+  { name: "Today's birds: drive to near ones, fly to far ones", tour: true },
   { name: 'Ocean Beach → Golden Gate → Marin Headlands', pts: [[-122.5095,37.754],[-122.4962,37.7705],[-122.456,37.803],[-122.4783,37.8324],[-122.5385,37.8318]] },
   { name: 'Embarcadero → Bay Bridge → Berkeley Marina → Albany Bulb', pts: [[-122.3937,37.7955],[-122.3176,37.8665],[-122.3125,37.8865]] },
   { name: 'South Bay baylands: Palo Alto → Shoreline → Alviso', pts: [[-122.1150,37.4590],[-122.0860,37.4320],[-121.9690,37.4290]] },
@@ -710,9 +715,11 @@ $('sfx').onchange = () => store.set('bs.sfx', $('sfx').checked ? 'on' : 'off');
 
 // Speeding: over the posted limit by 10% and the gulls take aim. Each hit costs 5 of today's points.
 let lastPoo = 0;
-function checkSpeed(kmh, limitKmh, unit) {
+function checkSpeed(kmh, limitKmh, unit, zone) {
   const box = $('limit');
   if (!limitKmh) { box.hidden = true; return; }
+  $('limitCap').innerHTML = zone === 'air' ? 'FLIGHT<br>LIMIT' : zone ? 'TOWER<br>LIMIT' : 'SPEED<br>LIMIT';
+  box.classList.toggle('air', !!zone);
   const show = v => Math.round(units === 'mi' ? v / MI : v);   // Mapbox reports km/h; show it in the chosen unit
   box.hidden = false; $('limitV').textContent = show(limitKmh);
   $('youV').textContent = `You ${fmtSpeed(kmh)}`;
@@ -721,7 +728,7 @@ function checkSpeed(kmh, limitKmh, unit) {
   if (over && performance.now() - lastPoo > 4000) {
     lastPoo = performance.now(); const t = birdPoo();
     rollDay(); const lost = Math.min(t.cost, game.pts); game.pts -= lost; saveGame();
-    status(`Splat! ${t.who} ${t.note}.` + (lost ? ` −${lost} points.` : ''));
+    status((zone && zone !== 'air' ? `Bird strike near ${zone}! ` : 'Splat! ') + `${t.who} ${t.note}.` + (lost ? ` −${lost} points.` : ''));
   }
 }
 
@@ -1030,6 +1037,7 @@ function listen(pos) {
 async function loadRoute(i) {
   stopDrive();
   const r = ROUTES[i];
+  if (r.tour) return loadTour();
   status('Routing with Mapbox Directions…');
   const u = `https://api.mapbox.com/directions/v5/mapbox/driving/${r.pts.map(p => p.join(',')).join(';')}?geometries=geojson&overview=full&annotations=maxspeed&access_token=${keys().mb}`;
   const d = await fetch(u).then(x => x.json());
@@ -1052,14 +1060,102 @@ async function loadRoute(i) {
   status(`${fmtDist(route.length)} · ${sightings.size} sightings · ${nSp} species. Press Start.`);
   $('go').disabled = false;
 }
+// ---------- today's birds tour: drive to close sightings, fly to far ones ----------
+// Flight rules borrow the FAA's small-drone limits (100 mph, 400 ft) and slow right down near the big airports.
+const FLY_OVER_M = 2 * 1609.344, FLIGHT_KMH = 100 * MI, CRUISE_ALT_M = 120;
+const AIRPORTS = [{ name: 'SFO', at: [-122.379, 37.6213] }, { name: 'Oakland Airport', at: [-122.2208, 37.7213] }, { name: 'San José Airport', at: [-121.929, 37.3639] }];
+const TOWER_KMH = 30 * MI, TOWER_M = 5000;
+let tourBirds = [];
+const sfDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(d);
+async function loadTour() {
+  route = null; map.getSource('route')?.setData({ type: 'FeatureCollection', features: [] });
+  sightings.clear(); notable.clear();
+  status("Finding today's sightings…");
+  let pool;
+  if (SHARED) { await loadShared([[-122.3, 37.7]], 200); pool = sharedData; }
+  else { await loadSightingsAround([[-122.3, 37.7]], 50); pool = [...sightings.values()]; }
+  // "Today" in San Francisco; before anything's been logged today, use the most recent day in the data.
+  const days = [...new Set(pool.map(o => o.obsDt.slice(0, 10)))].sort();
+  const day = days.includes(sfDate()) ? sfDate() : days[days.length - 1];
+  const todayKeys = new Set(pool.filter(o => o.obsDt.startsWith(day) && hasAudio(o.sciName)).map(o => o.speciesCode + '|' + o.locId));
+  for (const k of [...sightings.keys()]) if (!todayKeys.has(k)) sightings.delete(k);
+  tourBirds = [...sightings.values()];
+  refreshBirds();
+  const start = carMarker.getLngLat?.() ? carMarker.getLngLat().toArray() : [-122.4194, 37.7749];
+  carMarker.setLngLat(start[0] ? start : [-122.4194, 37.7749]).addTo(map);
+  map.flyTo({ center: [-122.3, 37.7], zoom: 9.4, pitch: 0, bearing: 0, duration: 1200 });
+  const label = day === sfDate() ? 'today' : `on ${new Date(day + 'T12:00').toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+  status(`${tourBirds.length} sightings reported ${label}. Press Start to chase them: drive under ${fmtDist(FLY_OVER_M)}, fly beyond.`);
+  $('go').disabled = !tourBirds.length;
+}
+// Chase a species not yet heard on this tour; rare and notable birds count as "closer", so the tour
+// roams the Bay (and flies) instead of circling one park.
+const spotCache = new Map();
+const areaOf = ([lng, lat]) => `${Math.floor(lng / .17)},${Math.floor(lat / .135)}`;   // ~15 km squares
+function nextTourBird(from) {
+  const heardSp = new Set([...heardKeys].map(k => k.split('|')[0]));
+  const here = areaOf(from), moveOn = (drive.areaHits?.[here] || 0) >= 3;   // three birds per area, then go elsewhere
+  let best = null, bs = Infinity;
+  for (const s of tourBirds) {
+    if (heardKeys.has(s.key) || heardSp.has(s.speciesCode) || (moveOn && areaOf(s.lngLat) === here)) continue;
+    if (!spotCache.has(s.speciesCode)) spotCache.set(s.speciesCode, spotsFor(s.speciesCode));
+    const spots = spotCache.get(s.speciesCode), weight = notable.has(s.key) ? 8 : spots <= 3 ? 5 : spots <= 10 ? 2 : 1;
+    const score = dist(from, s.lngLat) / weight;
+    if (score < bs) { bs = score; best = s; }
+  }
+  return best && { s: best, d: dist(from, best.lngLat) };
+}
+async function nextLeg() {
+  const from = drive.pos || carMarker.getLngLat().toArray(), nx = nextTourBird(from);
+  if (!nx) { status(`Tour done. Heard ${heardCount} birds, scored ${game.pts - drive.startPts} points.`); stopDrive(); return; }
+  drive.loading = true; drive.target = nx.s;
+  let leg;
+  if (nx.d < FLY_OVER_M) {
+    try {
+      const u = `https://api.mapbox.com/directions/v5/mapbox/driving/${from.join(',')};${nx.s.lngLat.join(',')}?geometries=geojson&overview=full&annotations=maxspeed&access_token=${keys().mb}`;
+      const d = await fetch(u).then(x => x.json()), r = d.routes?.[0];
+      if (r && r.distance < nx.d * 4) {      // a sane road route; otherwise just fly there
+        leg = prepLine(r.geometry.coordinates);
+        leg.limits = r.legs.flatMap(l => l.annotation?.maxspeed || []).map(m => m.speed ? { kmh: m.unit === 'mph' ? m.speed * MI : m.speed, unit: m.unit } : null);
+      }
+    } catch {}
+  }
+  if (!drive) return;
+  if (!leg) { leg = prepLine([from, nx.s.lngLat]); leg.fly = true; }
+  route = leg; drive.s = 0; drive.loading = false; drive.landedAt = null;
+  map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: leg.coords } });
+  map.setPaintProperty('route', 'line-dasharray', leg.fly ? [1.5, 1.5] : [1, 0]);
+  if (!speedChosen) { $('speed').value = leg.fly ? FLIGHT_KMH : (leg.limits?.find(Boolean)?.kmh || 40.2); $('speed').oninput(); }
+  if (leg.fly) { [0, .5, 1].forEach(t => noise(t, .5, 'highpass', 2600, 900, .16)); tone('sine', 300, 900, 0, 1.6, .05); }
+  status(`Next: ${nx.s.comName} at ${nx.s.locName.split(/ - |--/)[0]} · ${fmtDist(nx.d)} · ${leg.fly ? 'flying' : 'driving'}`);
+}
+function flightLimit(pos) {
+  for (const a of AIRPORTS) if (dist(pos, a.at) < TOWER_M) return { kmh: TOWER_KMH, zone: a.name };
+  return { kmh: FLIGHT_KMH, zone: 'air' };
+}
+function setAltitude(alt) {
+  const el = carMarker.getElement();
+  el.classList.toggle('flying', alt > 2);
+  carMarker.setOffset([0, -alt * .45]);                      // lift the car off its shadow on screen
+  el.querySelector('svg').style.transform = `scale(${1 + alt / 260})`;
+  const sh = el.querySelector('.shadow'); if (sh) sh.style.transform = `translateY(${alt * .45}px) scale(${1 - alt / 400})`;
+}
+
 function resetHeard() {
   heardKeys.clear(); lastSpecies.clear(); heardCount = 0; voices.forEach(endVoice);
   $('heardList').innerHTML = ''; $('nHeard').textContent = 0; refreshBirds();
 }
 function driveLabel(on) { $('go').textContent = on ? 'Stop' : 'Start'; if (!on) prog(''); }
 function startDrive() {
-  if (!route) return;
+  const tour = ROUTES[+$('route').value].tour;
+  if (!route && !tour) return;
   resetHeard();
+  if (tour) {
+    drive = { mode: 'sim', tour: true, s: 0, t: performance.now(), bear: 0, startPts: game.pts, startLife: game.life.length,
+              pos: carMarker.getLngLat().toArray(), loading: true };
+    driveLabel(true); drive.zoom = map.getZoom(); drive.pitch = map.getPitch();
+    nextLeg(); requestAnimationFrame(tick); return;
+  }
   // Start at the posted limit for the first stretch that has one.
   const first = route.limits?.find(Boolean);
   if (first && !speedChosen) { $('speed').value = first.kmh; $('speed').oninput(); }
@@ -1070,26 +1166,49 @@ function startDrive() {
 function stopDrive() {
   if (drive?.watch != null) navigator.geolocation.clearWatch(drive.watch);
   drive = null; voices.forEach(endVoice); driveLabel(false); $('limit').hidden = true; $('gps').textContent = 'Live GPS';
+  if (carMarker) setAltitude(0);
 }
 function tick(now) {
   if (!drive || drive.mode !== 'sim') return;
   const dt = Math.min(.25, (now - drive.t) / 1000); drive.t = now;
+  if (drive.loading || !route) { requestAnimationFrame(tick); return; }
   drive.s += (+$('speed').value / 3.6) * dt;
+  if (drive.tour && drive.s >= route.length) {
+    // Arrived: let the bird sing, pause a moment, then head for the next one.
+    drive.s = route.length; drive.pos = route.coords[route.coords.length - 1]; setAltitude(0);
+    if (!drive.landedAt) {
+      drive.landedAt = now; if (route.fly) noise(0, .6, 'lowpass', 900, 200, .25);
+      const t = drive.target, a = areaOf(drive.pos);
+      drive.areaHits = drive.areaHits || {}; drive.areaHits[a] = (drive.areaHits[a] || 0) + 1;
+      if (t && !heardKeys.has(t.key)) sing(t, drive.pos).then(ok => { if (!ok) heardKeys.add(t.key); });   // never revisit the same spot
+    }
+    if (now - drive.landedAt > 2500) { drive.loading = true; nextLeg(); }
+    listen(drive.pos); requestAnimationFrame(tick); return;
+  }
   if (drive.s >= route.length) {
     const pts = game.pts - drive.startPts, lifers = game.life.length - drive.startLife;
     status(`Arrived. Heard ${heardCount} birds, scored ${pts} points, ${lifers} new for your life list.`);
     stopDrive(); return;
   }
   const pos = along(route, drive.s), ahead = along(route, drive.s + 80);
-  const lim = route.limits?.[segAt(route, drive.s)];
-  checkSpeed(+$('speed').value, lim?.kmh, lim?.unit);
+  if (route.fly) {
+    const fl = flightLimit(pos), climb = Math.min(1, drive.s / 700, (route.length - drive.s) / 700);
+    checkSpeed(+$('speed').value, fl.kmh, 'mph', fl.zone);
+    setAltitude(CRUISE_ALT_M * Math.max(0, climb));
+  } else {
+    const lim = route.limits?.[segAt(route, drive.s)];
+    checkSpeed(+$('speed').value, lim?.kmh, lim?.unit);
+    setAltitude(0);
+  }
+  if (drive.tour) drive.pos = pos;
   const target = bearing(pos, ahead);
   let diff = ((target - drive.bear + 540) % 360) - 180;
   drive.bear = (drive.bear + diff * Math.min(1, dt * 2) + 360) % 360;
   carMarker.setLngLat(pos).setRotation(drive.bear);
   // Pull the camera back as speed rises so the drive reads as fast; ease toward it each frame.
   const kmh = +$('speed').value, k = Math.min(1, dt * 1.5);
-  const [targetZoom, targetPitch] = camTarget(kmh);
+  let [targetZoom, targetPitch] = camTarget(kmh);
+  if (route.fly) { targetZoom = Math.min(targetZoom, camMode === 'street' ? 15.6 : 13.6); targetPitch = Math.min(targetPitch, 62); }   // see further from the air
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
@@ -1203,7 +1322,7 @@ function initMap() {
     maxBounds: [[BAY[0][0] - .35, BAY[0][1] - .3], [BAY[1][0] + .35, BAY[1][1] + .3]] });
   map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   const el = document.createElement('div'); el.className = 'car';
-  el.innerHTML = `<svg viewBox="0 0 26 26" width="26" height="26"><path d="M13 2 L22 23 L13 18 L4 23 Z" fill="#7fd6a5" stroke="#0b1a12" stroke-width="1.5"/></svg>`;
+  el.innerHTML = `<div class="shadow"></div><svg viewBox="0 0 26 26" width="26" height="26"><path d="M13 2 L22 23 L13 18 L4 23 Z" fill="#7fd6a5" stroke="#0b1a12" stroke-width="1.5"/></svg>`;
   carMarker = new mapboxgl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' });
 
   map.on('load', () => {
