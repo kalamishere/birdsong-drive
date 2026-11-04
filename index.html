@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Birdsong Drive</title>
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js"></script>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
 <style>
 /* Field notebook on a dashboard: dark marsh panels over a dawn map; Latin names in serif italic,
    counts and codes in mono like a checklist; one warm "goldfinch" accent for points and rarities. */
@@ -58,7 +58,8 @@ button.icon { padding: 8px 11px; font-weight: 500; }
 .check input { accent-color: var(--moss); width: 16px; height: 16px; flex: 0 0 auto; }
 #status { margin-top: 10px; font: 12px var(--f-mono); color: var(--dim); min-height: 1.4em; }
 .credits { color: var(--dim); font-size: 11px; margin-top: 8px; opacity: .8; }
-.legend { display: flex; gap: 12px; margin-top: 12px; font-size: 11px; color: var(--dim); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; font-size: 11px; color: var(--dim); }
+#settings .seg { display: flex; } #settings .seg button { flex: 1; padding: 6px 4px; }
 .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
 
 /* Top strip: drive bar on the left, score and stickers on the right. They share one wrapping row,
@@ -263,6 +264,13 @@ body:not(.clean) #showBar { display: none; }
   <div class="check"><input type="checkbox" id="sfx" checked><span>Game sounds, and bird poo when you speed</span></div>
   <label>Voice (installed on this device)</label>
   <div style="display:flex;gap:8px"><select id="voice" style="flex:1"></select><button id="voiceTest" class="icon">▶</button></div>
+  <label>Map</label>
+  <div class="check"><input type="checkbox" id="heat"><span>Heatmap of sightings around the Bay</span></div>
+  <div class="check"><input type="checkbox" id="terrain"><span>3D terrain</span></div>
+  <label>Light <span id="lightNow"></span></label>
+  <div class="seg" id="light"><button data-v="auto">Auto</button><button data-v="dawn">Dawn</button><button data-v="day">Day</button><button data-v="dusk">Dusk</button><button data-v="night">Night</button></div>
+  <label>Weather <span id="wxNow"></span></label>
+  <div class="seg" id="wx"><button data-v="live">Live</button><button data-v="clear">Clear</button><button data-v="fog">Fog</button><button data-v="rain">Rain</button><button data-v="snow">Snow</button></div>
   <label>Units</label>
   <div class="seg" id="units"><button data-u="mi">Miles · mph</button><button data-u="km">Kilometres · km/h</button></div>
   <label>Speed <span id="speedK"></span></label>
@@ -273,7 +281,7 @@ body:not(.clean) #showBar { display: none; }
   <input id="back" type="range" min="1" max="30" step="1" value="7">
   <div class="row"><button id="gps">Live GPS</button><button id="here">Load birds in view</button></div>
   <div class="row"><button id="hidePanels">Hide controls (H)</button><button id="keys">Keys</button></div>
-  <div class="legend"><span><i style="background:#e9f2ec"></i>sighting</span><span><i style="background:var(--gold)"></i>notable</span><span><i style="background:var(--song)"></i>heard</span></div>
+  <div class="legend" id="legend"></div>
   <div id="status"></div>
   <div class="credits" id="credits">Sightings: eBird, Cornell Lab of Ornithology. Songs, photos and facts: iNaturalist and Wikipedia.</div>
 </div>
@@ -445,8 +453,8 @@ async function loadShared(points, radiusKm) {
     status('Loading sightings…');
     const d = await fetch(CFG.sightingsUrl, { cache: 'no-cache' }).then(r => r.json());
     sharedData = d.obs.map(([sp, lc, obsDt, howMany, subId, rare]) => {
-      const [speciesCode, comName, sciName] = d.species[sp], [locId, locName, lat, lng] = d.locs[lc];
-      return { speciesCode, comName, sciName, locId, locName, lat, lng, obsDt, howMany, subId, rare, t: Date.parse(obsDt.replace(' ', 'T')) };
+      const [speciesCode, comName, sciName, order, family] = d.species[sp], [locId, locName, lat, lng] = d.locs[lc];
+      return { speciesCode, comName, sciName, order, family, locId, locName, lat, lng, obsDt, howMany, subId, rare, t: Date.parse(obsDt.replace(' ', 'T')) };
     });
     $('credits').textContent += ` Sightings updated ${new Date(d.updated).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}.`;
   }
@@ -456,7 +464,7 @@ async function loadShared(points, radiusKm) {
     if (o.rare) notable.add(o.speciesCode + '|' + o.locId);
     addObs(o);
   }
-  refreshBirds();
+  refreshBirds(); refreshHeat();
 }
 async function loadSightingsAround(points, radiusKm) {
   if (SHARED) return loadShared(points, radiusKm);
@@ -472,7 +480,7 @@ async function loadSightingsAround(points, radiusKm) {
   const notes = ebird('data/obs/geo/recent/notable', { lat: lat.toFixed(4), lng: lng.toFixed(4), dist: 50, back })
     .then(obs => obs.forEach(o => { notable.add(o.speciesCode + '|' + o.locId); addObs(o); }));
   await Promise.all([...batches, notes]);
-  refreshBirds();
+  refreshBirds(); refreshHeat(); ensureOrders();
 }
 function addObs(o) {
   const key = o.speciesCode + '|' + o.locId;
@@ -484,10 +492,40 @@ function spotsFor(code) {
   const since = Date.now() - $('back').value * 86400e3;
   return new Set(src.filter(o => o.speciesCode === code && (!o.t || o.t >= since)).map(o => o.locId)).size || 1;
 }
+// Seven bird groups by taxonomic order; each gets its own pin colour.
+const GROUPS = [
+  { id: 'duck', label: 'Ducks & geese', color: '#2563c9', orders: ['Anseriformes'] },
+  { id: 'shore', label: 'Gulls & shorebirds', color: '#0f9b8e', orders: ['Charadriiformes'] },
+  { id: 'water', label: 'Herons, pelicans & divers', color: '#7048c8', orders: ['Pelecaniformes', 'Suliformes', 'Gaviiformes', 'Podicipediformes', 'Procellariiformes', 'Gruiformes'] },
+  { id: 'raptor', label: 'Raptors & owls', color: '#c2410c', orders: ['Accipitriformes', 'Falconiformes', 'Strigiformes', 'Cathartiformes'] },
+  { id: 'hum', label: 'Hummingbirds & swifts', color: '#d4307a', orders: ['Apodiformes', 'Caprimulgiformes'] },
+  { id: 'song', label: 'Songbirds', color: '#3b8a2e', orders: ['Passeriformes'] },
+  { id: 'other', label: 'Other birds', color: '#8a6a45', orders: [] },
+];
+const groupOf = order => (GROUPS.find(g => g.orders.includes(order)) || GROUPS[GROUPS.length - 1]).id;
+$('legend').innerHTML = GROUPS.map(g => `<span><i style="background:${g.color}"></i>${g.label}</span>`).join('') +
+  `<span><i style="background:none;box-shadow:0 0 0 2px var(--gold)"></i>notable</span><span><i style="background:none;box-shadow:0 0 0 2px var(--song)"></i>heard</span>`;
+// Local mode has no pre-fetched taxonomy, so look up orders for whatever species are loaded.
+const taxOrder = new Map();
+async function ensureOrders() {
+  if (SHARED) return;
+  const codes = [...new Set([...sightings.values()].filter(s => !s.order).map(s => s.speciesCode))].filter(c => !taxOrder.has(c));
+  for (let i = 0; i < codes.length; i += 100) {
+    try { (await ebird('ref/taxonomy/ebird', { fmt: 'json', species: codes.slice(i, i + 100).join(',') })).forEach(t => taxOrder.set(t.speciesCode, t.order)); } catch {}
+  }
+  sightings.forEach(s => s.order ||= taxOrder.get(s.speciesCode));
+  refreshBirds();
+}
+function heatGeoJSON() {
+  const since = Date.now() - $('back').value * 86400e3;
+  const src = sharedData ? sharedData.filter(o => o.t >= since) : [...sightings.values()];
+  return { type: 'FeatureCollection', features: src.map(o => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [o.lng, o.lat] }, properties: {} })) };
+}
+const refreshHeat = () => map?.getSource('heat')?.setData(heatGeoJSON());
 function birdsGeoJSON() {
   return { type: 'FeatureCollection', features: [...sightings.values()].map(s => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: s.lngLat },
-    properties: { key: s.key, name: s.comName, notable: notable.has(s.key), heard: heardKeys.has(s.key) },
+    properties: { key: s.key, name: s.comName, notable: notable.has(s.key), heard: heardKeys.has(s.key), group: groupOf(s.order) },
   })) };
 }
 function refreshBirds() { map?.getSource('birds')?.setData(birdsGeoJSON()); }
@@ -1109,11 +1147,58 @@ function startGps() {
   }, e => status('GPS error: ' + e.message), { enableHighAccuracy: true, maximumAge: 1000 });
 }
 
+// ---------- map look: light, sky and fog, weather, terrain, heatmap ----------
+const look = { light: store.get('bs.light') || 'auto', wx: store.get('bs.wx') || 'live',
+               heat: store.get('bs.heat') !== 'off', terrain: store.get('bs.terrain') !== 'off' };
+// "Auto" follows the clock in San Francisco, wherever you are playing from.
+const sfHour = () => +new Intl.DateTimeFormat('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Los_Angeles' }).format(new Date());
+const autoLight = () => { const h = sfHour(); return h >= 5 && h < 8 ? 'dawn' : h >= 8 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'dusk' : 'night'; };
+const currentLight = () => look.light === 'auto' ? autoLight() : look.light;
+let liveWx = null, defaultFog = null;
+const WMO = { 0: 'clear', 1: 'mostly clear', 2: 'partly cloudy', 3: 'overcast', 45: 'foggy', 48: 'foggy' };
+async function fetchLiveWx() {
+  try {
+    const d = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.77&longitude=-122.45&current=weather_code').then(r => r.json());
+    const c = d.current.weather_code;
+    const kind = c === 45 || c === 48 ? 'fog' : (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? 'rain'
+      : (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : 'clear';
+    liveWx = { kind, text: WMO[c] || { rain: 'raining', snow: 'snowing' }[kind] || kind };
+  } catch { liveWx = { kind: 'clear', text: 'weather unavailable' }; }
+  applyLook();
+}
+function applyLook() {
+  const lp = currentLight(), kind = look.wx === 'live' ? (liveWx?.kind || 'clear') : look.wx, night = lp === 'night';
+  $('lightNow').textContent = look.light === 'auto' ? `${lp} in SF now` : '';
+  $('wxNow').textContent = look.wx === 'live' ? (liveWx ? `${liveWx.text} in SF now` : 'checking…') : '';
+  document.querySelectorAll('#light button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === look.light));
+  document.querySelectorAll('#wx button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === look.wx));
+  $('heat').checked = look.heat; $('terrain').checked = look.terrain;
+  if (!map?.isStyleLoaded()) return;
+  map.setConfigProperty('basemap', 'lightPreset', lp);
+  if (map.getLayer('heat')) map.setLayoutProperty('heat', 'visibility', look.heat ? 'visible' : 'none');
+  if (map.getSource('dem')) map.setTerrain(look.terrain ? { source: 'dem', exaggeration: 1.3 } : null);
+  // Sky and fog: Standard's own atmosphere when clear; a thick coastal fog bank when foggy.
+  defaultFog ??= map.getFog();
+  map.setFog(kind === 'fog' ? { range: [-0.5, 2.2], color: night ? '#2b3138' : '#cfd6db', 'high-color': night ? '#1c2228' : '#b8c3cc',
+    'horizon-blend': .35, 'space-color': night ? '#14181c' : '#aab5bf', 'star-intensity': 0 } : defaultFog);
+  const near = v => ['interpolate', ['linear'], ['zoom'], 11, 0, 13, v];   // precipitation shows once you're down at street level
+  map.setRain(kind === 'rain' ? { density: near(.5), intensity: 1, color: '#a8adbc', opacity: .7, vignette: near(.5), 'vignette-color': '#464646',
+    direction: [0, 80], 'droplet-size': [2.6, 18.2], 'distortion-strength': .7, 'center-thinning': 0 } : null);
+  map.setSnow(kind === 'snow' ? { density: near(.85), intensity: 1, 'center-thinning': .1, direction: [0, 50], opacity: 1, color: '#ffffff',
+    'flake-size': .71, vignette: near(.3), 'vignette-color': '#ffffff' } : null);
+}
+document.querySelectorAll('#light button').forEach(b => b.onclick = () => { look.light = b.dataset.v; store.set('bs.light', look.light); applyLook(); });
+document.querySelectorAll('#wx button').forEach(b => b.onclick = () => { look.wx = b.dataset.v; store.set('bs.wx', look.wx); applyLook(); });
+$('heat').onchange = () => { look.heat = $('heat').checked; store.set('bs.heat', look.heat ? 'on' : 'off'); applyLook(); };
+$('terrain').onchange = () => { look.terrain = $('terrain').checked; store.set('bs.terrain', look.terrain ? 'on' : 'off'); applyLook(); };
+fetchLiveWx(); setInterval(fetchLiveWx, 15 * 60e3); setInterval(applyLook, 10 * 60e3);   // keep weather and Auto light current
+applyLook();
+
 // ---------- map ----------
 function initMap() {
   mapboxgl.accessToken = keys().mb;
   map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/standard',
-    config: { basemap: { lightPreset: 'dawn', showPointOfInterestLabels: false } },
+    config: { basemap: { lightPreset: currentLight(), showPointOfInterestLabels: false } },
     center: [-122.42, 37.77], zoom: 10.5, pitch: 0,
     maxBounds: [[BAY[0][0] - .35, BAY[0][1] - .3], [BAY[1][0] + .35, BAY[1][1] + .3]] });
   map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
@@ -1125,13 +1210,27 @@ function initMap() {
     map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({ id: 'route', type: 'line', source: 'route', slot: 'middle',
       paint: { 'line-color': '#7fd6a5', 'line-width': 5, 'line-opacity': .85 }, layout: { 'line-cap': 'round', 'line-join': 'round' } });
+    // Heatmap of every recent sighting around the Bay; fades out as you zoom in to the pins.
+    map.addSource('heat', { type: 'geojson', data: heatGeoJSON() });
+    map.addLayer({ id: 'heat', type: 'heatmap', source: 'heat', slot: 'middle', maxzoom: 15,
+      layout: { visibility: look.heat ? 'visible' : 'none' },
+      paint: { 'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 16, 11, 26, 14, 40],
+               'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, .25, 11, .5, 13, 1],
+               'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 9, .7, 13, .45, 14.5, 0],
+               'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(0,0,0,0)', .2, 'rgba(0,0,0,0)', .35, 'rgba(127,214,165,.35)',
+                 .6, 'rgba(127,214,165,.6)', .8, 'rgba(255,203,69,.75)', 1, 'rgba(255,244,214,.9)'] } });
+    map.addSource('dem', { type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1', tileSize: 512, maxzoom: 14 });
+    applyLook();
     map.addSource('birds', { type: 'geojson', data: birdsGeoJSON() });
-    const color = ['case', ['get', 'heard'], '#5ec8ff', ['get', 'notable'], '#ffcb45', '#e9f2ec'];
+    const color = ['match', ['get', 'group'], ...GROUPS.flatMap(g => [g.id, g.color]).slice(0, -2), GROUPS[GROUPS.length - 1].color];
+    const glow = ['case', ['get', 'notable'], '#ffcb45', ['get', 'heard'], '#5ec8ff', color];
     map.addLayer({ id: 'birds-glow', type: 'circle', source: 'birds', slot: 'top',
-      paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 16], 'circle-color': color, 'circle-opacity': .18, 'circle-blur': .6 } });
+      paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 16], 'circle-color': glow,
+               'circle-opacity': ['case', ['any', ['get', 'notable'], ['get', 'heard']], .45, .18], 'circle-blur': .6 } });
     map.addLayer({ id: 'birds', type: 'circle', source: 'birds', slot: 'top',
-      paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 15, 6], 'circle-color': color,
-               'circle-stroke-color': '#0b1a12', 'circle-stroke-width': 1 } });
+      paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 15, 6.5], 'circle-color': color,
+               'circle-stroke-color': ['case', ['get', 'heard'], '#5ec8ff', ['get', 'notable'], '#ffcb45', '#ffffff'],
+               'circle-stroke-width': ['case', ['any', ['get', 'heard'], ['get', 'notable']], 2.5, 1.2] } });
     map.addLayer({ id: 'birds-label', type: 'symbol', source: 'birds', slot: 'top', minzoom: 14,
       layout: { 'text-field': ['get', 'name'], 'text-size': 11, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true },
       paint: { 'text-color': '#ffffff', 'text-halo-color': '#0b1a12', 'text-halo-width': 1.4 } });

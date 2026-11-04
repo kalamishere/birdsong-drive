@@ -55,6 +55,13 @@ def main(out):
             locs.append([o["locId"], o["locName"], round(o["lat"], 5), round(o["lng"], 5)])
         obs.append([sp_idx[o["speciesCode"]], loc_idx[o["locId"]], o["obsDt"], o.get("howMany"), o.get("subId"),
                     1 if key in notable_keys else 0])
+    # Taxonomic order and family for each species, so the map can colour pins by bird group.
+    for i in range(0, len(species), 100):
+        codes = ",".join(sp[0] for sp in species[i:i + 100])
+        tax = {t["speciesCode"]: t for t in get("ref/taxonomy/ebird", fmt="json", species=codes)}
+        for sp in species[i:i + 100]:
+            t = tax.get(sp[0], {})
+            sp += [t.get("order", ""), t.get("familyComName", "")]
     data = {"updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "backDays": BACK_DAYS,
             "species": species, "locs": locs, "obs": obs}
     with open(out, "w") as f:
