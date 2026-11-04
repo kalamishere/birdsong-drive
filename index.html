@@ -1321,8 +1321,8 @@ const VEHICLES = {
     <circle cx="22.6" cy="12" r=".6" fill="#222"/><circle cx="25.4" cy="12" r=".6" fill="#222"/></svg>`,
 };
 const PAINTS = ['#2f7fd1', '#7fd6a5', '#ffcb45', '#f4f1e6', '#d4307a'];
-const VEH_NAMES = { gull: 'Gull', hatch: 'Hatchback', roadster: 'Roadster', arrow: 'Arrow' };
-let vehicle = store.get('bs.vehicle') || 'gull', paint = store.get('bs.paint') || PAINTS[0];
+const VEH_NAMES = { hatch: 'Hatchback', gull: 'Gull', roadster: 'Roadster', arrow: 'Arrow' };
+let vehicle = store.get('bs.vehicle') || 'hatch', paint = store.get('bs.paint') || PAINTS[0];
 function drawVehicle(el) {
   [...el.classList].filter(c => c.startsWith('v-')).forEach(c => el.classList.remove(c));   // keep Mapbox's marker classes
   el.classList.add('car', `v-${vehicle}`);
