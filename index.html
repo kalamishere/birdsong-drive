@@ -1197,6 +1197,10 @@ function stopDrive() {
 // The set speed is where you're heading; the car gets there like a car does. About 0-60 mph in 9 s,
 // firmer braking, slower through sharp bends, and a smooth stop at the end of each leg.
 const ACCEL = { road: 3, air: 6 }, BRAKE = { road: 5, air: 6 };
+// High set speeds get stronger thrust and brakes, so any speed is reached in a few seconds:
+// about 6 s to cruise in the air, 12 s on the road.
+const accelFor = (mode, target) => Math.max(ACCEL[mode], target / (mode === 'air' ? 6 : 12));
+const brakeFor = (mode, target) => Math.max(BRAKE[mode], target / (mode === 'air' ? 5 : 8));
 function cornerCap(s) {
   if (route.fly) return Infinity;
   const p0 = along(route, s), p1 = along(route, s + 30), p2 = along(route, s + 70);
@@ -1206,11 +1210,11 @@ function cornerCap(s) {
 function advance(dt) {
   const mode = route.fly ? 'air' : 'road';
   let target = +$('speed').value / 3.6;
-  const left = route.length - drive.s;
-  target = Math.min(target, Math.sqrt(2 * BRAKE[mode] * Math.max(0, left - 2)) + .5, cornerCap(drive.s));
+  const a = accelFor(mode, target), b = brakeFor(mode, target), left = route.length - drive.s;
+  target = Math.min(target, Math.sqrt(2 * b * Math.max(0, left - 2)) + .5, cornerCap(drive.s));
   for (let t = 0; t < dt; t += .05) {                          // small steps keep it smooth on slow frames
     const h = Math.min(.05, dt - t), v = drive.v || 0;
-    drive.v = v < target ? Math.min(target, v + ACCEL[mode] * h) : Math.max(target, v - BRAKE[mode] * h);
+    drive.v = v < target ? Math.min(target, v + a * h) : Math.max(target, v - b * h);
     drive.s = Math.min(route.length, drive.s + drive.v * h);
   }
   showSpeed();
@@ -1264,7 +1268,11 @@ function tick(now) {
   // Pull the camera back as speed rises so the drive reads as fast; ease toward it each frame.
   const kmh = Math.max(20, drive.v * 3.6), k = Math.min(1, dt * 1.5);
   let [targetZoom, targetPitch] = camTarget(kmh);
-  if (route.fly) { targetZoom = Math.min(targetZoom, camMode === 'street' ? 15.6 : 13.6); targetPitch = Math.min(targetPitch, 62); }   // see further from the air
+  // In the air the camera climbs with speed: ~13.6 at 100 mph down to ~10.8 at 600 mph, so fast reads as fast.
+  if (route.fly) {
+    const mph = drive.v * 2.237, z = 13.6 - Math.max(0, Math.log2(Math.max(mph, 1) / 100)) * 1.1;
+    targetZoom = Math.min(targetZoom, Math.max(10.5, camMode === 'street' ? z + 1.4 : z)); targetPitch = Math.min(targetPitch, 58);
+  }
   drive.zoom += (targetZoom - drive.zoom) * k; drive.pitch += (targetPitch - drive.pitch) * k;
   map.jumpTo({ center: pos, bearing: drive.bear, zoom: drive.zoom, pitch: drive.pitch });
   listen(pos);
